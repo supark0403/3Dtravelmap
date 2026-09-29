@@ -1,0 +1,18 @@
+# 대용량 여행 사진 원본 - GitHub에 푸시하지 않음 (1.3GB+)
+sample/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.mp4
+!_placeholder_keep
+
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Node / Web
+node_modules/
+dist/
+.env
