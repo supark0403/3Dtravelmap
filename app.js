@@ -12,11 +12,11 @@ const MAPS = {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     credit: "Esri World Imagery", maximumLevel: 19 }),
   carto: () => new Cesium.UrlTemplateImageryProvider({
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-    subdomains: "abcd", credit: "© OpenStreetMap contributors © CARTO", maximumLevel: 20 }),
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    credit: "Esri World Topo", maximumLevel: 19 }),
 };
 const MAP_ORDER = ["street", "sat", "carto"];
-const MAP_LABEL = { street: "일반(OSM)", sat: "위성(Esri)", carto: "일반(Carto)" };
+const MAP_LABEL = { street: "일반(OSM)", sat: "위성(Esri)", carto: "지형(Esri)" };
 let mapKind = "street", mapFailed = {}, errCount = 0;
 
 function gridFallback() { return new Cesium.GridImageryProvider(); }
@@ -128,8 +128,14 @@ async function showHome() {
 }
 
 async function openTrip(id) {
-  TL = await (await fetch(`data/trips/${encodeURIComponent(id)}.json`)).json();
-  TL.items.forEach(d => d._ts = Date.parse(d.datetime.replace(" ", "T")) || 0);
+  $("mapstatus").textContent = "여행 로딩 중...";
+  try {
+    TL = await (await fetch(`data/trips/${encodeURIComponent(id)}.json`)).json();
+  } catch (e) {
+    $("mapstatus").textContent = "여행 로드 실패: " + e;
+    return;
+  }
+  TL.items.forEach(d => d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0);
   shown = TL.items.filter(d => d.d_lat != null);
   viewer.entities.removeAll();
   entities = [];
