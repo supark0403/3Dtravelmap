@@ -402,13 +402,17 @@ function glideMover(to, durMs) {
   if (snapMover || durMs <= 0 || (from[0] === to[0] && from[1] === to[1])) {
     mover.setLngLat(to);
     snapMover = false;
+    if ($("follow").checked) { try { map.jumpTo({ center: to }); } catch (e) {} }
     return;
   }
   const t0 = performance.now();
   const step = (t) => {
     const f = Math.min(1, (t - t0) / durMs);
     const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
-    mover.setLngLat([from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e]);
+    const lng = from[0] + (to[0] - from[0]) * e, lat = from[1] + (to[1] - from[1]) * e;
+    mover.setLngLat([lng, lat]);
+    // 시점 고정: 매 프레임 아이콘 위치로 (딜레이 없음)
+    if ($("follow").checked) { try { map.jumpTo({ center: [lng, lat] }); } catch (err) {} }
     glideRAF = f < 1 ? requestAnimationFrame(step) : null;
   };
   glideRAF = requestAnimationFrame(step);
@@ -506,7 +510,9 @@ function go(i) {
   const d = shown[idx];
   const [mode, label] = segMode(shown[idx - 1], d);
   moverEl.textContent = EMOJI[mode];
-  const dur = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9));
+  const dur0 = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9));
+  // 장거리(5km+)는 절반 속도로 천천히
+  const dur = hopKm(shown[idx - 1], d) > 5 ? Math.min(dur0 * 2, 3000) : dur0;
   glideMover([d.d_lon, d.d_lat], dur);
   const sel = map.getSource("tm-sel-src");
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
@@ -521,11 +527,7 @@ function go(i) {
   if (img) img.onerror = () => { img.onerror = () => { img.onerror = null; img.src = fb; }; img.src = primary; };
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
-  if ($("follow").checked) {
-    // 줌 고정 추적: 줌아웃 없이 현재 줌 그대로 쭉 따라감
-    map.flyTo({ center: [d.d_lon, d.d_lat], zoom: map.getZoom(), pitch: 62,
-      duration: dur, essential: true });
-  }
+  // 카메라는 glideMover 프레임에서 아이콘에 고정 (flyTo 없음 → 딜레이 없음)
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
   for (let k = 1; k <= 3; k++) {
     const n = shown[idx + k];
