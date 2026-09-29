@@ -193,15 +193,31 @@ async function main() {
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 
   $("home").onclick = showHome;
-  $("localOpen").onclick = () => $("localPick").click();
-  $("localPick").onchange = async e => {
-    const files = e.target.files;
-    if (!files || !files.length) return;
+  $("localOpen").onclick = async () => {
+    if (window.showDirectoryPicker) {
+      try {
+        const files = await pickLocalFolderFS();
+        if (files && files.length) { loadLocalFiles(files); return; }
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // 취소
+        $("tripNote").textContent = "폴더 열기 실패, 읽기 전용으로 시도: " + (e.message || e);
+      }
+    }
+    $("localPick").click();
+  };
+  async function loadLocalFiles(files) {
     try {
       await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = `읽는 중 ${a}/${b}...`; });
       showHome();
     } catch (err) { $("tripNote").textContent = "읽기 실패: " + err.message; }
+  }
+  $("localPick").onchange = async e => {
+    const files = e.target.files;
     e.target.value = "";
+    if (!files || !files.length) return;
+    LOCAL.write = false;
+    loadLocalFiles(files);
   };
   $("prev").onclick = () => nav(idx - 1);
   $("next").onclick = () => nav(idx + 1);
@@ -360,7 +376,7 @@ function firstAnchorTs() { const a = shown.find(d => d.method === "gps"); return
 
 function applyManual() {
   // 원복 (GPS는 절대 손대지 않음)
-  shown.forEach(d => { if (d._orig) { d.d_lat = d._orig.lat; d.d_lon = d._orig.lon; d.method = d._orig.method; d.at = d._orig.at; } });
+  shown.forEach(d => { if (d._orig) { d.d_lat = d._orig.lat; d.d_lon = d._orig.lon; d.method = d._orig.method; d.at = d._orig.at; } delete d._rule; });
   const rules = MANUAL[TL.trip] || [];
   const fat = firstAnchorTs();
   // 1) 사진별 직접지정 매칭
@@ -377,9 +393,9 @@ function applyManual() {
   // 2) 시간순 앵커 체인 재계산: GPS + 직접지정이 모두 앵커, 나머지는 직전 앵커에 hold
   const order = [...shown].sort((a, b) => (a._ts - b._ts) || (a.id < b.id ? -1 : 1));
   const anchorOf = (d) => {
-    if (d.method === "gps") return { lat: d.d_lat, lon: d.d_lon, label: d.id };
+    if (d.method === "gps") return { lat: d.d_lat, lon: d.d_lon, label: d.id, ref: null };
     const r = match.get(d);
-    return r ? { lat: r.lat, lon: r.lon, label: r.name } : null;
+    return r ? { lat: r.lat, lon: r.lon, label: r.name, ref: r } : null;
   };
   const nextAnchor = new Array(order.length).fill(null);
   let nxt = null;
@@ -392,7 +408,7 @@ function applyManual() {
   order.forEach((d, i) => {
     const a = anchorOf(d);
     if (a && d.method === "gps") { cur = a; return; }
-    if (a) { stamp(d, a.lat, a.lon, "manual", a.label); cur = a; }
+    if (a) { stamp(d, a.lat, a.lon, "manual", a.label); cur = a; d._rule = a.ref; }
     else if (cur) stamp(d, cur.lat, cur.lon, "held", cur.label);
     else if (nextAnchor[i]) { const na = nextAnchor[i]; stamp(d, na.lat, na.lon, "held_next", na.label); }
     else stamp(d, null, null, "unplaced", null);
@@ -473,19 +489,44 @@ function mApply() {
   if (!MPLACE || !TL) return;
   const mode = document.querySelector('input[name=mscope]:checked').value;
   const rules = MANUAL[TL.trip] || (MANUAL[TL.trip] = []);
+  let nr = null;
   if (mode === "current") {
     const cur = shown[idx];
     if (!cur) return;
     if (cur.method === "gps") { $("mapstatus").textContent = "GPS 확정 사진은 지정할 필요 없음"; return; }
-    rules.push({ mode, file: cur.file, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon });
+    nr = { mode, file: cur.file, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon };
   } else if (mode === "before") {
-    rules.push({ mode, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon });
+    nr = { mode, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon };
   } else {
     const f = $("mfrom").value, t = $("mto").value;
     if (!f || !t) { $("mapstatus").textContent = "시간 범위를 입력하세요"; return; }
-    rules.push({ mode: "range", name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon, fromTs: Date.parse(f), toTs: Date.parse(t) });
+    nr = { mode: "range", name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon, fromTs: Date.parse(f), toTs: Date.parse(t) };
   }
+  rules.push(nr);
   saveManual(); renderRules(); applyManual(); renderAll(idx);
+  writeBackFor(nr);
+}
+async function writeBackFor(rule) {
+  const box = $("mwrite");
+  if (!box) return;
+  const targets = shown.filter(d => d._rule === rule);
+  const jpegs = targets.filter(d => /\.jpe?g$/i.test(d.file || "") && d._handle);
+  const skip = targets.length - jpegs.length;
+  if (typeof piexif === "undefined") { box.textContent = "원본 기록 불가: piexif 로드 실패"; return; }
+  if (!LOCAL.write) { box.textContent = `원본 기록 불가: 쓰기 권한 없음(폴더를 다시 열어 허용) · ${targets.length}장 화면에만 적용`; return; }
+  if (!jpegs.length) { box.textContent = `원본 기록: JPEG 아님 ${skip}장 제외, 화면에만 적용`; return; }
+  let ok = 0, fail = 0;
+  for (const d of jpegs) {
+    try {
+      await writeGpsExif(d._handle, rule.lat, rule.lon);
+      d.has_gps = true; d.lat = rule.lat; d.lon = rule.lon;
+      d._orig = { lat: rule.lat, lon: rule.lon, method: "gps", at: d.id };
+      ok++;
+    } catch (e) { fail++; }
+    box.textContent = `원본 기록 중 ${ok + fail}/${jpegs.length}...`;
+  }
+  applyManual(); renderAll(idx);
+  box.textContent = `원본 기록 완료: 성공 ${ok}${fail ? `, 실패 ${fail}` : ""}${skip ? `, 제외 ${skip}` : ""} — GPS 앵커 승격`;
 }
 function renderRules() {
   const box = $("mrules");
