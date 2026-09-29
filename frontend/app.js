@@ -1,5 +1,6 @@
 let map, mapReady = false, TL, shown = [], idx = 0, timer = null, speed = 1;
-let moverEl, mover, baseKind = "street", baseFailed = {};
+let moverPos = [0, 0], moverEmo = "🚶";
+let baseKind = "street", baseFailed = {};
 const $ = id => document.getElementById(id);
 const BASE_MS = 1500;
 
@@ -64,7 +65,6 @@ function onBaseError(kind) {
   else $("mapstatus").textContent = "지도 로드 실패 (네트워크 확인 필요)";
 }
 
-function emojiImage(emoji) { return emoji; } // mover uses text marker
 const EMOJI = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢" };
 
 // segment mode by speed between consecutive displayed items (ship = manual override only)
@@ -92,8 +92,8 @@ function dotColor(d) {
 
 function renderTripLayers() {
   if (!mapReady || !map.isStyleLoaded()) return;
-  for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-days"]) if (map.getLayer(l)) map.removeLayer(l);
-  for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
+  for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-mover", "tm-days"]) if (map.getLayer(l)) map.removeLayer(l);
+  for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-mover-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
   // 날짜별 그룹 (shown은 시간순)
   const groups = [];
   let curDate = null;
@@ -102,32 +102,36 @@ function renderTripLayers() {
     if (dt !== curDate) { groups.push([]); curDate = dt; }
     groups[groups.length - 1].push({ d, i });
   });
-  // 날짜별 경로 조각: 전날 마지막 점부터 이어서 끊김 없이, 일차마다 색 다르게
+  // 날짜별 경로 조각: 앵커 전체를 시간순으로 이으면서 일차마다 색 다르게
+  // (앵커 1개뿐인 날도 앞 점과 연결되어 선이 끊기지 않음)
   const DAY_COLORS = ["#2196f3", "#ff9800", "#e040fb", "#64dd17", "#ff5252", "#00bcd4", "#ffee58"];
   const segFeats = [];
-  let prevTail = null;
+  let prev = null;
   groups.forEach((g, n) => {
-    const coords = [];
-    if (prevTail) coords.push(prevTail);
+    const mine = [];
     for (const { d } of g) {
       if (d.method !== "gps" && d.method !== "manual") continue;
       const p = [d.d_lon, d.d_lat];
-      const l = coords[coords.length - 1];
-      if (!l || l[0] !== p[0] || l[1] !== p[1]) coords.push(p);
+      const l = mine.length ? mine[mine.length - 1] : prev;
+      if (!l || l[0] !== p[0] || l[1] !== p[1]) mine.push(p);
     }
-    if (coords.length > 1) {
-      segFeats.push({ type: "Feature",
-        properties: { color: DAY_COLORS[n % DAY_COLORS.length], day: n + 1 },
-        geometry: { type: "LineString", coordinates: coords } });
-      prevTail = coords[coords.length - 1];
+    if (mine.length) {
+      const coords = prev ? [prev, ...mine] : mine;
+      if (coords.length > 1) {
+        segFeats.push({ type: "Feature",
+          properties: { color: DAY_COLORS[n % DAY_COLORS.length], day: n + 1 },
+          geometry: { type: "LineString", coordinates: coords } });
+      }
+      prev = mine[mine.length - 1];
     }
   });
   map.addSource("tm-route-src", { type: "geojson",
     data: { type: "FeatureCollection", features: segFeats } });
   if (segFeats.length) {
     map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
+      layout: { "line-cap": "round" },
       paint: { "line-color": ["get", "color"], "line-width": 3,
-        "line-dasharray": [2.5, 2, 0.1, 2], "line-cap": "round" } });
+        "line-dasharray": [2.5, 2, 0.1, 2] } });
   }
   map.addSource("tm-photos-src", { type: "geojson",
     data: { type: "FeatureCollection", features: shown.map((d, i) => ({
@@ -142,6 +146,13 @@ function renderTripLayers() {
   map.addLayer({ id: "tm-sel", type: "circle", source: "tm-sel-src",
     paint: { "circle-radius": 13, "circle-color": "rgba(255,255,255,0.35)",
       "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
+  // 이동 아이콘: DOM 마커 대신 심볼 레이어 (지형 occlusion으로 DOM이 투명해지는 문제 회피)
+  map.addSource("tm-mover-src", { type: "geojson",
+    data: { type: "Feature", geometry: { type: "Point", coordinates: moverPos },
+      properties: { emo: moverEmo } } });
+  map.addLayer({ id: "tm-mover", type: "symbol", source: "tm-mover-src",
+    layout: { "text-field": ["get", "emo"], "text-size": 34,
+      "text-allow-overlap": true, "text-ignore-placement": true, "text-offset": [0, -0.5] } });
   // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨
   map.addSource("tm-days-src", { type: "geojson",
     data: { type: "FeatureCollection", features: groups.map((g, n) => {
@@ -165,20 +176,18 @@ async function main() {
   map.on("style.load", () => setup3D());
   map.on("error", () => { $("mapstatus").textContent = "지도 타일 오류 — 네트워크 확인"; });
   map.on("click", e => {
-    const fs = map.queryRenderedFeatures(e.point, { layers: ["tm-days", "tm-photos"] });
+    const fs = map.queryRenderedFeatures(e.point, { layers: ["tm-days", "tm-photos", "tm-mover"] });
     const f = fs && fs[0];
     if (f && f.properties && f.properties.i !== undefined) go(+f.properties.i);
+    else if (f && f.source === "tm-mover-src") go(idx);
   });
-  for (const l of ["tm-photos", "tm-days"]) {
+  for (const l of ["tm-photos", "tm-days", "tm-mover"]) {
     map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
     map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
   }
 
-  moverEl = document.createElement("div");
-  moverEl.className = "mover";
-  moverEl.textContent = EMOJI.walk;
-  moverEl.onclick = () => go(idx);
-  mover = new maplibregl.Marker({ element: moverEl }).setLngLat([0, 0]).addTo(map);
+  moverEmo = EMOJI.walk;
+  moverPos = [0, 0];
 
   document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => { baseFailed = {}; setBase(b.dataset.map); });
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
@@ -395,13 +404,27 @@ function applyManual() {
 let MPLACE = null;
 let glideRAF = null, snapMover = true;
 
+// 이동 아이콘 상태 → 심볼 레이어 반영
+function setMover(pos, emo) {
+  moverPos = pos;
+  if (emo !== undefined) moverEmo = emo;
+  try {
+    const s = mapReady && map.getSource("tm-mover-src");
+    if (s) s.setData({ type: "Feature", geometry: { type: "Point", coordinates: moverPos },
+      properties: { emo: moverEmo } });
+  } catch (e) {}
+}
+function setMoverSize(px) {
+  try { if (mapReady && map.getLayer("tm-mover")) map.setPaintProperty("tm-mover", "text-size", px); } catch (e) {}
+}
+
 // 아이콘을 선 따라 미끄러지듯 이동 (구간 시간에 맞춤)
-function glideMover(to, durMs) {
+function glideMover(to, durMs, emo) {
   if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; }
-  let from = to;
-  try { const c = mover.getLngLat(); if (c) from = [c.lng, c.lat]; } catch (e) {}
+  const from = moverPos.slice();
+  if (emo !== undefined) moverEmo = emo;
   if (snapMover || durMs <= 0 || (from[0] === to[0] && from[1] === to[1])) {
-    mover.setLngLat(to);
+    setMover(to);
     snapMover = false;
     if ($("follow").checked) { try { map.jumpTo({ center: to }); } catch (e) {} }
     return;
@@ -411,7 +434,7 @@ function glideMover(to, durMs) {
     const f = Math.min(1, (t - t0) / durMs);
     const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
     const lng = from[0] + (to[0] - from[0]) * e, lat = from[1] + (to[1] - from[1]) * e;
-    mover.setLngLat([lng, lat]);
+    setMover([lng, lat]);
     // 시점 고정: 매 프레임 아이콘 위치로 (딜레이 없음)
     if ($("follow").checked) { try { map.jumpTo({ center: [lng, lat] }); } catch (err) {} }
     glideRAF = f < 1 ? requestAnimationFrame(step) : null;
@@ -515,11 +538,10 @@ function go(i) {
   $("scrub").value = idx;
   const d = shown[idx];
   const [mode, label] = segMode(shown[idx - 1], d);
-  moverEl.textContent = EMOJI[mode];
   const dur0 = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9));
   // 장거리(5km+)는 절반 속도로 천천히
   const dur = hopKm(shown[idx - 1], d) > 5 ? Math.min(dur0 * 2, 3000) : dur0;
-  glideMover([d.d_lon, d.d_lat], dur);
+  glideMover([d.d_lon, d.d_lat], dur, EMOJI[mode]);
   const sel = map.getSource("tm-sel-src");
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
@@ -593,13 +615,16 @@ function interlude(i, advance) {
   // 점 위 아이콘만 침대 → 배낭 → 원래 이동 아이콘 순으로 (고정 시간, 배속 무시)
   const d = shown[i];
   const [mode] = segMode(shown[i - 1], d);
-  mover.setLngLat([d.d_lon, d.d_lat]);
+  setMover([d.d_lon, d.d_lat], "🛏️");
+  setMoverSize(42);
   $("mapstatus").textContent = dayNum(i) + "일차 시작 — 기상 + 짐싸기";
   const seq = ["🛏️", "🎒", EMOJI[mode]];
   let k = 0;
-  moverEl.textContent = seq[0];
-  moverEl.classList.add("bounce");
-  wakeInt = setInterval(() => { k = Math.min(k + 1, seq.length - 1); moverEl.textContent = seq[k]; }, 800);
+  wakeInt = setInterval(() => {
+    k = Math.min(k + 1, seq.length - 1);
+    setMover(moverPos, seq[k]);
+    setMoverSize(k % 2 ? 42 : 30);
+  }, 800);
   interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
 }
 function finishInterlude() {
@@ -613,7 +638,7 @@ function cancelInterlude() {
   if (interludeTO) { clearTimeout(interludeTO); interludeTO = null; }
   if (wakeInt) { clearInterval(wakeInt); wakeInt = null; }
   pendingInter = null;
-  moverEl.classList.remove("bounce");
+  setMoverSize(34);
   if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 }
 // 수동 이동: 인터루드 취소 후 이동, 재생 중이면 타이머 복구
