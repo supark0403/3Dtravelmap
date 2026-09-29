@@ -4,13 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3D Travel Map</title>
-<link rel="stylesheet" href="https://unpkg.com/cesium@1.121.0/Build/Cesium/Widgets/widgets.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="stylesheet" href="style.css">
-<script>window.CESIUM_BASE_URL = "https://unpkg.com/cesium@1.121.0/Build/Cesium/";</script>
-<script src="https://unpkg.com/cesium@1.121.0/Build/Cesium/Cesium.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 </head>
 <body>
-<div id="cesium"></div>
+<div id="map"></div>
 <div id="topbar">
   <button id="home" title="여행 목록">⌂ 홈</button>
   <span id="tripname"></span>
@@ -18,7 +17,7 @@
   <span class="spacer"></span>
   <button data-map="street" class="mapbtn on">🗺 일반</button>
   <button data-map="sat" class="mapbtn">🛰 위성</button>
-  <button data-map="carto" class="mapbtn">⛰ 지형</button>
+  <button data-map="terrain" class="mapbtn">⛰ 지형</button>
 </div>
 <div id="trips" class="hidden">
   <div class="trow"><h2>여행 선택</h2><span class="spacer"></span><button id="tripAdd" class="hidden">+ 새 폴더</button></div>

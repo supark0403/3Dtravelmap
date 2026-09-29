@@ -34,7 +34,8 @@ python backend/thumbs.py frontend/data/items.json sample frontend/data/thumbs
 - 홈에서 여행 폴더 추가(+ 새 폴더)/이름 변경(✏️)/삭제(🗑️). 직접지정 위치는 이름 변경 시 자동 이전
 
 ## 프론트엔드 기능
-- 실제 지도 3단 전환 (일반/위성/OSM, 실패 시 자동 폴백)
+- 진짜 3D 지도 (MapLibre, 키 불필요): 건물 돌출 + DEM 지형 + 지구본 뷰
+- 지도 3단: 🗺 일반+3D건물 / 🛰 위성+3D건물 / ⛰ 지형(고도×2+음영)
 - 재생/정지, 0.5x~4x 속도, 처음 사진으로(⏮), 홈(⌂)
 - 구간 속도 기반 이동 아이콘: 🚶 도보/체류, 🚇 탈것, ✈️ 비행기 (🚢는 trip JSON에 `transport:"ship"` 지정 시)
 - GPS확정/같은장소/직접지정 배지, 사진 클릭·재생 바 스크럽, 따라가기 토글
@@ -44,5 +45,5 @@ python backend/thumbs.py frontend/data/items.json sample frontend/data/thumbs
 - `backend/extract.py` : 사진(EXIF)+영상(ffprobe) 추출 → `items.json`
 - `backend/build_path.py` : 시간 정렬 + step-hold 배치 → `trips/<여행>.json` + `trips.json`
 - `backend/thumbs.py` : 팝업 썸네일 (사진 리사이즈 / 영상 1초 프레임)
-- `frontend/` : CesiumJS 3D 지도 + 여행/타임라인 UI
+- `frontend/` : MapLibre 3D 지도 + 여행/타임라인 UI (OpenFreeMap 벡터, AWS DEM 지형 — 전부 키 불필요)
 - `sample/` : 테스트 원본 (git 제외, 로컬 전용)
