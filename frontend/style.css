@@ -10,6 +10,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #trips .trow button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
 #tripNote{font-size:12px;opacity:.75;margin-bottom:8px;min-height:16px}
 #localPick{display:none}
+#localPath{font-size:12px;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:38vw}
 .heic{background:#1d2733;border-radius:6px;padding:24px 12px;text-align:center;font-size:13px}
 .heic a{color:#8fdc92}
 .tcard{display:flex;gap:6px;align-items:stretch}

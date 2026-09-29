@@ -302,6 +302,7 @@ async function showHome() {
   $("daybadge").classList.add("hidden");
   $("tripname").textContent = "";
   $("tripNote").textContent = "";
+  $("localPath").textContent = LOCAL.root ? "📁 " + LOCAL.root : "";
   try { map.jumpTo({ center: [127.8, 36.3], zoom: 6.2, pitch: 0 }); } catch (e) {}
   let trips = [];
   API_OK = false;

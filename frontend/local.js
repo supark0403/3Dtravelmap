@@ -1,6 +1,6 @@
 // 로컬 폴더 모드: 서버 없이 브라우저가 직접 읽음 (File API + exifr + blob URL).
 // 사진은 업로드되지 않고 로컬에서만 처리됨. 영상 GPS는 미지원(시간 hold로 배치).
-const LOCAL = { trips: {}, order: [] };
+const LOCAL = { trips: {}, order: [], root: "" };
 const LOCAL_IMG = /\.(jpe?g|png|heic|heif)$/i;
 const LOCAL_VID = /\.(mp4|mov|m4v)$/i;
 const LOCAL_TS = /(\d{8})_(\d{6})/;
@@ -27,6 +27,8 @@ async function parseLocalFiles(fileList, onProgress) {
   }
   LOCAL.trips = {};
   LOCAL.order = [];
+  const rp = (files[0].webkitRelativePath || "").split("/");
+  LOCAL.root = rp.length > 1 ? rp[0] : "";
   const names = Object.keys(groups).sort();
   let done = 0;
   for (const name of names) {
