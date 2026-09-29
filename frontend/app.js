@@ -126,7 +126,8 @@ function renderTripLayers() {
     data: { type: "FeatureCollection", features: segFeats } });
   if (segFeats.length) {
     map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
-      paint: { "line-color": ["get", "color"], "line-width": 3 } });
+      paint: { "line-color": ["get", "color"], "line-width": 3,
+        "line-dasharray": [2.5, 2, 0.1, 2], "line-cap": "round" } });
   }
   map.addSource("tm-photos-src", { type: "geojson",
     data: { type: "FeatureCollection", features: shown.map((d, i) => ({
@@ -209,6 +210,9 @@ async function main() {
   $("showHeld").onchange = applyFilter;
   $("follow").onchange = () => { if ($("follow").checked) frameCurrent(); };
   $("close").onclick = () => $("panel").classList.add("hidden");
+  try { panelMin = localStorage.getItem("tm_panel_min") === "1"; } catch (e) {}
+  applyPanelMin();
+  $("minbtn").onclick = () => { panelMin = !panelMin; applyPanelMin(); };
   initPanelDrag();
   $("manualBtn").onclick = () => $("manual").classList.toggle("hidden");
   $("mclose").onclick = () => $("manual").classList.add("hidden");
@@ -295,6 +299,7 @@ async function showHome() {
   $("panel").classList.add("hidden");
   $("manual").classList.add("hidden");
   $("trips").classList.remove("hidden");
+  $("daybadge").classList.add("hidden");
   $("tripname").textContent = "";
   $("tripNote").textContent = "";
   try { map.jumpTo({ center: [127.8, 36.3], zoom: 6.2, pitch: 0 }); } catch (e) {}
@@ -395,6 +400,7 @@ function openLocalTrip(name) {
 function enterTrip(tl, label) {
   stop();
   seenDays.clear();
+  shownDay = null;
   TL = tl;
   TL.items.forEach(d => { if (d._ts === undefined) d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0; });
   loadManual();
@@ -405,6 +411,7 @@ function enterTrip(tl, label) {
   $("trips").classList.add("hidden");
   $("hud").classList.remove("hidden");
   $("tripname").textContent = label;
+  $("daybadge").classList.remove("hidden");
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
   if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
   renderRules();
@@ -584,6 +591,14 @@ function hopKm(a, b) {
   return Math.hypot((b.d_lon - a.d_lon) * 91, (b.d_lat - a.d_lat) * 111);
 }
 
+let panelMin = false;
+function applyPanelMin() {
+  $("panel").classList.toggle("min", panelMin);
+  const b = $("minbtn"); if (b) b.textContent = panelMin ? "□" : "–";
+  try { localStorage.setItem("tm_panel_min", panelMin ? "1" : "0"); } catch (e) {}
+}
+
+let shownDay = null;
 function go(i) {
   idx = Math.max(0, Math.min(shown.length - 1, i));
   // 레이어가 스타일 로드 타이밍에 밀려 없으면 복구
@@ -599,6 +614,8 @@ function go(i) {
   const sel = map.getSource("tm-sel-src");
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
+  const dk = dayKey(idx);
+  if (dk !== shownDay) { shownDay = dk; $("daybadge").textContent = dayNum(idx) + "일차"; }
   const isHeic = /\.(heic|heif)$/i.test(d.file || "");
   const fb = `../travel/${encodeURI(d.file)}`;
   const primary = d.u || mediaSrc(d, "..");
@@ -683,6 +700,7 @@ function interlude(i, advance) {
   const seq = ["🛏️", "🎒", EMOJI[mode]];
   let k = 0;
   moverEl.textContent = seq[0];
+  moverEl.classList.add("bounce");
   wakeInt = setInterval(() => { k = Math.min(k + 1, seq.length - 1); moverEl.textContent = seq[k]; }, 800);
   interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
 }
@@ -697,6 +715,7 @@ function cancelInterlude() {
   if (interludeTO) { clearTimeout(interludeTO); interludeTO = null; }
   if (wakeInt) { clearInterval(wakeInt); wakeInt = null; }
   pendingInter = null;
+  moverEl.classList.remove("bounce");
   if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 }
 // 수동 이동: 인터루드 취소 후 이동, 재생 중이면 타이머 복구
