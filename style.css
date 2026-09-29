@@ -44,9 +44,6 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #mresults .tripcard{font-size:12px}#mplace{font-size:13px;margin:6px 0}#mrules{font-size:12px}
 .mrule{display:flex;gap:6px;align-items:center;background:#1d2733;border-radius:6px;padding:4px 8px;margin:4px 0}
 .mrule span{flex:1}
-.mover{font-size:30px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));cursor:pointer}
-.mover.bounce{animation:bounce .45s ease-in-out infinite}
-@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 #daybadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:700;border-radius:8px;padding:6px 16px;z-index:5}
 #daybadge.hidden{display:none}
 #panel.min #media,#panel.min #info{display:none}
