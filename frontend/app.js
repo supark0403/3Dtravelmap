@@ -94,12 +94,39 @@ function renderTripLayers() {
   if (!mapReady || !map.isStyleLoaded()) return;
   for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-days"]) if (map.getLayer(l)) map.removeLayer(l);
   for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
-  const pts = routePoints();
-  if (pts.length > 1) {
-    map.addSource("tm-route-src", { type: "geojson",
-      data: { type: "Feature", geometry: { type: "LineString", coordinates: pts } } });
+  // 날짜별 그룹 (shown은 시간순)
+  const groups = [];
+  let curDate = null;
+  shown.forEach((d, i) => {
+    const dt = (d.datetime || "").slice(0, 10);
+    if (dt !== curDate) { groups.push([]); curDate = dt; }
+    groups[groups.length - 1].push({ d, i });
+  });
+  // 날짜별 경로 조각: 전날 마지막 점부터 이어서 끊김 없이, 일차마다 색 다르게
+  const DAY_COLORS = ["#2196f3", "#ff9800", "#e040fb", "#64dd17", "#ff5252", "#00bcd4", "#ffee58"];
+  const segFeats = [];
+  let prevTail = null;
+  groups.forEach((g, n) => {
+    const coords = [];
+    if (prevTail) coords.push(prevTail);
+    for (const { d } of g) {
+      if (d.method !== "gps" && d.method !== "manual") continue;
+      const p = [d.d_lon, d.d_lat];
+      const l = coords[coords.length - 1];
+      if (!l || l[0] !== p[0] || l[1] !== p[1]) coords.push(p);
+    }
+    if (coords.length > 1) {
+      segFeats.push({ type: "Feature",
+        properties: { color: DAY_COLORS[n % DAY_COLORS.length], day: n + 1 },
+        geometry: { type: "LineString", coordinates: coords } });
+      prevTail = coords[coords.length - 1];
+    }
+  });
+  map.addSource("tm-route-src", { type: "geojson",
+    data: { type: "FeatureCollection", features: segFeats } });
+  if (segFeats.length) {
     map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
-      paint: { "line-color": "#2196f3", "line-width": 3 } });
+      paint: { "line-color": ["get", "color"], "line-width": 3 } });
   }
   map.addSource("tm-photos-src", { type: "geojson",
     data: { type: "FeatureCollection", features: shown.map((d, i) => ({
@@ -114,19 +141,12 @@ function renderTripLayers() {
   map.addLayer({ id: "tm-sel", type: "circle", source: "tm-sel-src",
     paint: { "circle-radius": 13, "circle-color": "rgba(255,255,255,0.35)",
       "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
-  // 날짜 경계: 날이 넘어가기 전 마지막 사진에 N일차 라벨
-  const groups = [];
-  let curDate = null;
-  shown.forEach((d, i) => {
-    const dt = (d.datetime || "").slice(0, 10);
-    if (dt !== curDate) { groups.push([]); curDate = dt; }
-    groups[groups.length - 1].push({ d, i });
-  });
+  // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨
   map.addSource("tm-days-src", { type: "geojson",
     data: { type: "FeatureCollection", features: groups.map((g, n) => {
-      const last = g[g.length - 1];
-      return { type: "Feature", geometry: { type: "Point", coordinates: [last.d.d_lon, last.d.d_lat] },
-        properties: { i: last.i, label: (n + 1) + "일차" } };
+      const first = g[0];
+      return { type: "Feature", geometry: { type: "Point", coordinates: [first.d.d_lon, first.d.d_lat] },
+        properties: { i: first.i, label: (n + 1) + "일차" } };
     }) } });
   map.addLayer({ id: "tm-days", type: "symbol", source: "tm-days-src",
     layout: { "text-field": ["get", "label"], "text-size": 14, "text-offset": [0, -1.6],
@@ -341,18 +361,6 @@ async function openTrip(id) {
   snapMover = true; // 새 여행: 아이콘 점프 방지용 스냅
   renderAll(0);
   frameCurrent();
-}
-
-// anchor + manual route (no interpolation, ever)
-function routePoints() {
-  const pts = [];
-  for (const d of shown) {
-    if (d.method !== "gps" && d.method !== "manual") continue;
-    const p = [d.d_lon, d.d_lat];
-    const l = pts[pts.length - 1];
-    if (!l || l[0] !== p[0] || l[1] !== p[1]) pts.push(p);
-  }
-  return pts;
 }
 
 function renderAll(startIdx) {
