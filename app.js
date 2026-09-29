@@ -92,8 +92,8 @@ function dotColor(d) {
 
 function renderTripLayers() {
   if (!mapReady || !map.isStyleLoaded()) return;
-  for (const l of ["tm-route", "tm-photos", "tm-sel"]) if (map.getLayer(l)) map.removeLayer(l);
-  for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src"]) if (map.getSource(s)) map.removeSource(s);
+  for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-days"]) if (map.getLayer(l)) map.removeLayer(l);
+  for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
   const pts = routePoints();
   if (pts.length > 1) {
     map.addSource("tm-route-src", { type: "geojson",
@@ -114,6 +114,24 @@ function renderTripLayers() {
   map.addLayer({ id: "tm-sel", type: "circle", source: "tm-sel-src",
     paint: { "circle-radius": 13, "circle-color": "rgba(255,255,255,0.35)",
       "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
+  // 날짜 경계: 날이 넘어가기 전 마지막 사진에 N일차 라벨
+  const groups = [];
+  let curDate = null;
+  shown.forEach((d, i) => {
+    const dt = (d.datetime || "").slice(0, 10);
+    if (dt !== curDate) { groups.push([]); curDate = dt; }
+    groups[groups.length - 1].push({ d, i });
+  });
+  map.addSource("tm-days-src", { type: "geojson",
+    data: { type: "FeatureCollection", features: groups.map((g, n) => {
+      const last = g[g.length - 1];
+      return { type: "Feature", geometry: { type: "Point", coordinates: [last.d.d_lon, last.d.d_lat] },
+        properties: { i: last.i, label: (n + 1) + "일차" } };
+    }) } });
+  map.addLayer({ id: "tm-days", type: "symbol", source: "tm-days-src",
+    layout: { "text-field": ["get", "label"], "text-size": 14, "text-offset": [0, -1.6],
+      "text-allow-overlap": true, "text-font": ["Noto Sans Bold"] },
+    paint: { "text-color": "#111", "text-halo-color": "#fff", "text-halo-width": 2 } });
   applyFilter();
 }
 
@@ -125,9 +143,15 @@ async function main() {
   map.on("load", () => { mapReady = true; setup3D(); });
   map.on("style.load", () => setup3D());
   map.on("error", () => { $("mapstatus").textContent = "지도 타일 오류 — 네트워크 확인"; });
-  map.on("click", "tm-photos", e => { const f = e.features && e.features[0]; if (f) go(f.properties.i); });
-  map.on("mouseenter", "tm-photos", () => map.getCanvas().style.cursor = "pointer");
-  map.on("mouseleave", "tm-photos", () => map.getCanvas().style.cursor = "");
+  map.on("click", e => {
+    const fs = map.queryRenderedFeatures(e.point, { layers: ["tm-days", "tm-photos"] });
+    const f = fs && fs[0];
+    if (f && f.properties && f.properties.i !== undefined) go(+f.properties.i);
+  });
+  for (const l of ["tm-photos", "tm-days"]) {
+    map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
+  }
 
   moverEl = document.createElement("div");
   moverEl.className = "mover";
