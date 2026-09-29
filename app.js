@@ -3,11 +3,20 @@ const $ = id => document.getElementById(id);
 const BASE_MS = 1500;
 
 const MAPS = {
-  street: () => new Cesium.ArcGisMapServerImageryProvider({ url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer" }),
-  sat: () => new Cesium.ArcGisMapServerImageryProvider({ url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer" }),
-  osm: () => new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }),
+  // NOTE: ArcGisMapServerImageryProvider는 메타데이터 실패 시 렌더 크래시를 내서 사용 금지.
+  // 직접 타일 URL(UrlTemplate)만 사용 — 실패해도 errorEvent로 정상 처리됨.
+  street: () => new Cesium.UrlTemplateImageryProvider({
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    credit: "© OpenStreetMap contributors", maximumLevel: 19 }),
+  sat: () => new Cesium.UrlTemplateImageryProvider({
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    credit: "Esri World Imagery", maximumLevel: 19 }),
+  carto: () => new Cesium.UrlTemplateImageryProvider({
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    subdomains: "abcd", credit: "© OpenStreetMap contributors © CARTO", maximumLevel: 20 }),
 };
-const MAP_LABEL = { street: "일반지도(Esri)", sat: "위성(Esri)", osm: "OSM" };
+const MAP_ORDER = ["street", "sat", "carto"];
+const MAP_LABEL = { street: "일반(OSM)", sat: "위성(Esri)", carto: "일반(Carto)" };
 let mapKind = "street", mapFailed = {}, errCount = 0;
 
 function gridFallback() { return new Cesium.GridImageryProvider(); }
@@ -52,7 +61,7 @@ function setImagery(kind) {
 function onMapError(kind) {
   if (mapFailed[kind]) return;
   mapFailed[kind] = true;
-  const next = ["street", "sat", "osm"].find(k => !mapFailed[k]);
+  const next = MAP_ORDER.find(k => !mapFailed[k]);
   if (next) {
     $("mapstatus").textContent = `지도(${MAP_LABEL[kind]}) 실패 → ${MAP_LABEL[next]}로 전환`;
     setImagery(next);
@@ -65,7 +74,7 @@ function onMapError(kind) {
 
 async function main() {
   let bootProvider = null;
-  for (const k of ["street", "sat", "osm"]) {
+  for (const k of MAP_ORDER) {
     try { bootProvider = MAPS[k](); mapKind = k; break; } catch (e) { /* next */ }
   }
   viewer = new Cesium.Viewer("cesium", {
