@@ -307,9 +307,8 @@ async function showHome() {
   API_OK = false;
   try { trips = await api("/api/trips", "GET"); API_OK = true; }
   catch (e) {
-    try { trips = await (await fetch("data/trips.json")).json(); }
-    catch (e2) { $("triplist").innerHTML = "data/trips.json 없음 — backend 파이프라인을 먼저 실행하세요."; return; }
-    $("tripNote").textContent = "폴더 추가·이름변경·삭제 버튼은 python backend/server.py 로 실행해야 보입니다.";
+    // 정적 호스팅(Pages 등): 커밋된 예시 여행을 보여주지 않고 내 폴더 모드만 제공
+    $("tripNote").textContent = "📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)";
   }
   $("tripAdd").classList.toggle("hidden", !API_OK);
   $("tripRescan").classList.toggle("hidden", !API_OK);
