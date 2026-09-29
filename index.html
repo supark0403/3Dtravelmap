@@ -32,6 +32,7 @@
     <span id="speeds">
       <button data-s="0.5">0.5x</button><button data-s="1" class="on">1x</button><button data-s="2">2x</button><button data-s="4">4x</button>
     </span>
+    <button id="manualBtn" title="GPS 없는 구간 위치 직접 지정">📍 위치지정</button>
     <label><input type="checkbox" id="showHeld" checked> 추정 표시</label>
     <label><input type="checkbox" id="follow" checked> 따라가기</label>
   </div>
@@ -41,6 +42,22 @@
   <button id="close">✕</button>
   <div id="media"></div>
   <div id="info"></div>
+</div>
+<div id="manual" class="hidden">
+  <button id="mclose">✕</button>
+  <h3>📍 위치 직접 지정</h3>
+  <div class="mrow"><input id="mq" placeholder="예: 청주국제공항"><button id="msearch">검색</button></div>
+  <div id="mresults"></div>
+  <div id="mscope" class="hidden">
+    <div id="mplace"></div>
+    <label><input type="radio" name="mscope" value="before" checked> 첫 GPS 이전 사진 전부 (<span id="mbeforeN"></span>장)</label><br>
+    <label><input type="radio" name="mscope" value="range"> 시간 범위 지정</label>
+    <div class="mrow"><input id="mfrom" type="datetime-local"><span>~</span><input id="mto" type="datetime-local"></div>
+    <button id="mapply">적용</button>
+  </div>
+  <h4>지정 목록</h4>
+  <div id="mrules"></div>
+  <div class="mrow"><button id="mexport">내보내기</button><button id="mimportBtn">가져오기</button><input id="mimport" type="file" accept=".json" class="hidden"></div>
 </div>
 <script src="app.js"></script>
 </body>

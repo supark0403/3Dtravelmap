@@ -31,7 +31,9 @@ const EMOJI = { walk: emojiImage("🚶"), transit: emojiImage("🚇"), plane: em
 
 // segment mode by speed between consecutive displayed items (ship = manual override only)
 function segMode(a, b) {
-  if (!a || !b || b._ts <= a._ts) return ["walk", "🚶 체류"];
+  if (!a || !b) return ["walk", "🚶 체류"];
+  if (b.method === "manual") return ["walk", "📍 " + (b.at || "직접지정")];
+  if (b._ts <= a._ts) return ["walk", "🚶 체류"];
   const R = 6371, p1 = a.d_lat * Math.PI / 180, p2 = b.d_lat * Math.PI / 180;
   const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(((b.d_lon - a.d_lon) * Math.PI / 180) / 2) ** 2;
   const km = 2 * R * Math.asin(Math.sqrt(h));
@@ -105,6 +107,35 @@ async function main() {
   });
   $("showHeld").onchange = applyFilter;
   $("close").onclick = () => $("panel").classList.add("hidden");
+  $("manualBtn").onclick = () => $("manual").classList.toggle("hidden");
+  $("mclose").onclick = () => $("manual").classList.add("hidden");
+  $("msearch").onclick = mSearch;
+  $("mq").onkeydown = e => { if (e.key === "Enter") mSearch(); };
+  $("mapply").onclick = mApply;
+  $("mexport").onclick = () => {
+    if (!TL) return;
+    const blob = new Blob([JSON.stringify(MANUAL[TL.trip] || [], null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${TL.trip}.manual.json`;
+    a.click();
+  };
+  $("mimportBtn").onclick = () => $("mimport").click();
+  $("mimport").onchange = e => {
+    const f = e.target.files[0];
+    if (!f || !TL) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const list = JSON.parse(rd.result);
+        if (!Array.isArray(list)) throw new Error("배열 아님");
+        MANUAL[TL.trip] = list;
+        saveManual(); renderRules(); applyManual(); renderAll(idx);
+      } catch (err) { $("mapstatus").textContent = "가져오기 실패: " + err; }
+    };
+    rd.readAsText(f);
+    e.target.value = "";
+  };
   showHome();
 }
 
@@ -137,20 +168,47 @@ async function openTrip(id) {
   }
   TL.items.forEach(d => d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0);
   shown = TL.items.filter(d => d.d_lat != null);
-  viewer.entities.removeAll();
-  entities = [];
+  loadManual();
+  applyManual();
   $("trips").classList.add("hidden");
   $("hud").classList.remove("hidden");
   $("tripname").textContent = "📁 " + TL.trip;
+  if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
+  renderRules();
+  renderAll(0);
+  viewer.flyTo(viewer.entities);
+}
 
-  if (TL.route.length > 1)
-    viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray(TL.route.flat()), width: 3, material: Cesium.Color.GOLD } });
+// anchor + manual route (no interpolation, ever)
+function routePoints() {
+  const pts = [];
+  for (const d of shown) {
+    if (d.method !== "gps" && d.method !== "manual") continue;
+    const p = [d.d_lon, d.d_lat];
+    const l = pts[pts.length - 1];
+    if (!l || l[0] !== p[0] || l[1] !== p[1]) pts.push(p);
+  }
+  return pts;
+}
+
+function pointColor(d) {
+  if (d.type === "video") return Cesium.Color.MAGENTA;
+  if (d.method === "gps") return Cesium.Color.ORANGE;
+  if (d.method === "manual") return Cesium.Color.LIME;
+  return d.method === "held_next" ? Cesium.Color.PURPLE : Cesium.Color.DEEPSKYBLUE;
+}
+
+function renderAll(startIdx) {
+  viewer.entities.removeAll();
+  entities = [];
+  const pts = routePoints();
+  if (pts.length > 1)
+    viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray(pts.flat()), width: 3, material: Cesium.Color.GOLD } });
   shown.forEach((d, i) => {
-    const gps = d.method === "gps";
+    const big = d.method === "gps" || d.method === "manual";
     entities.push(viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, gps ? 60 : 30),
-      point: { pixelSize: gps ? 10 : 6,
-        color: d.type === "video" ? Cesium.Color.MAGENTA : (gps ? Cesium.Color.ORANGE : (d.method === "held_next" ? Cesium.Color.PURPLE : Cesium.Color.DEEPSKYBLUE)),
+      position: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, big ? 60 : 30),
+      point: { pixelSize: big ? 10 : 6, color: pointColor(d),
         outlineColor: Cesium.Color.WHITE, outlineWidth: 1 },
       _i: i,
     }));
@@ -159,11 +217,88 @@ async function openTrip(id) {
     billboard: { image: EMOJI.walk, scale: 0.9, verticalOrigin: Cesium.VerticalOrigin.BOTTOM }, _i: 0 });
 
   const m = TL.meta;
-  $("stats").textContent = `전체 ${m.total} · GPS ${m.gps} · 같은장소배치 ${m.held + m.held_next} · ${m.route_km}km · ${m.start} ~ ${m.end}`;
+  const man = shown.filter(d => d.method === "manual").length;
+  $("stats").textContent = `전체 ${m.total} · GPS ${m.gps} · 같은장소 ${m.held + m.held_next} · 직접 ${man} · ${m.start} ~ ${m.end}`;
   $("scrub").max = shown.length - 1;
   applyFilter();
-  go(0);
-  viewer.flyTo(viewer.entities);
+  go(Math.max(0, Math.min(startIdx, shown.length - 1)));
+}
+
+// ---- manual anchors (localStorage, GPS never overridden) ----
+let MANUAL = {};
+try { MANUAL = JSON.parse(localStorage.getItem("tm_manual") || "{}"); } catch (e) { MANUAL = {}; }
+function saveManual() { try { localStorage.setItem("tm_manual", JSON.stringify(MANUAL)); } catch (e) {} }
+function loadManual() { if (!MANUAL[TL.trip]) MANUAL[TL.trip] = []; }
+function firstAnchorTs() { const a = shown.find(d => d.method === "gps"); return a ? a._ts : Infinity; }
+
+function applyManual() {
+  shown.forEach(d => { if (d._orig) { d.d_lat = d._orig.lat; d.d_lon = d._orig.lon; d.method = d._orig.method; d.at = d._orig.at; } });
+  const rules = MANUAL[TL.trip] || [];
+  const fat = firstAnchorTs();
+  for (const r of rules) {
+    for (const d of shown) {
+      if (d.method === "gps") continue;
+      const hit = r.mode === "before" ? (d._ts < fat) : (d._ts >= r.fromTs && d._ts <= r.toTs);
+      if (!hit) continue;
+      if (!d._orig) d._orig = { lat: d.d_lat, lon: d.d_lon, method: d.method, at: d.at };
+      d.d_lat = r.lat; d.d_lon = r.lon; d.method = "manual"; d.at = r.name;
+    }
+  }
+}
+
+let MPLACE = null;
+async function mSearch() {
+  const q = $("mq").value.trim();
+  if (!q) return;
+  $("mresults").textContent = "검색 중...";
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ko&q=${encodeURIComponent(q)}`);
+    const list = await r.json();
+    if (!list.length) { $("mresults").textContent = "결과 없음"; return; }
+    $("mresults").innerHTML = "";
+    list.forEach(p => {
+      const b = document.createElement("button");
+      b.className = "tripcard";
+      b.innerHTML = `${p.display_name}<br><small>${p.lat}, ${p.lon}</small>`;
+      b.onclick = () => mPick(p);
+      $("mresults").appendChild(b);
+    });
+  } catch (e) { $("mresults").textContent = "검색 실패(네트워크): " + e; }
+}
+function mPick(p) {
+  MPLACE = { name: (p.name || (p.display_name || "").split(",")[0] || "지정위치"), lat: +p.lat, lon: +p.lon, addr: p.display_name };
+  $("mscope").classList.remove("hidden");
+  $("mplace").innerHTML = `<b>${MPLACE.name}</b><br><small>${MPLACE.addr}</small>`;
+  $("mbeforeN").textContent = shown.filter(d => d.method !== "gps" && d._ts < firstAnchorTs()).length;
+}
+function mApply() {
+  if (!MPLACE || !TL) return;
+  const mode = document.querySelector('input[name=mscope]:checked').value;
+  const rules = MANUAL[TL.trip] || (MANUAL[TL.trip] = []);
+  if (mode === "before") {
+    rules.push({ mode, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon });
+  } else {
+    const f = $("mfrom").value, t = $("mto").value;
+    if (!f || !t) { $("mapstatus").textContent = "시간 범위를 입력하세요"; return; }
+    rules.push({ mode: "range", name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon, fromTs: Date.parse(f), toTs: Date.parse(t) });
+  }
+  saveManual(); renderRules(); applyManual(); renderAll(idx);
+}
+function renderRules() {
+  const box = $("mrules");
+  const rules = (TL && MANUAL[TL.trip]) || [];
+  box.innerHTML = rules.length ? "" : "<small>없음</small>";
+  rules.forEach((r, i) => {
+    const div = document.createElement("div");
+    div.className = "mrule";
+    const scope = r.mode === "before" ? "첫 GPS 이전 전부" : `${new Date(r.fromTs).toLocaleString()} ~ ${new Date(r.toTs).toLocaleString()}`;
+    div.innerHTML = `<span>📍 ${r.name}<br><small>${scope}</small></span>`;
+    const del = document.createElement("button");
+    del.textContent = "삭제";
+    del.onclick = () => { rules.splice(i, 1); saveManual(); renderRules(); applyManual(); renderAll(idx); };
+    div.appendChild(del);
+    box.appendChild(div);
+  });
 }
 
 function applyFilter() {
@@ -176,7 +311,7 @@ function mediaSrc(d, base) {
   return `${base}/sample/${encodeURIComponent(TL.trip)}/${encodeURIComponent(d.file)}`;
 }
 function badge(d) {
-  const map = { gps: ["GPS확정", "gps"], held: ["같은장소", "held"], held_next: ["같은장소", "heldnext"] };
+  const map = { gps: ["GPS확정", "gps"], held: ["같은장소", "held"], held_next: ["같은장소", "heldnext"], manual: ["직접지정", "man"] };
   const [t, c] = map[d.method] || [d.method, "bad"];
   return `<span class="badge ${c}">${t}</span>` + (d.type === "video" ? ' <span class="badge held">VIDEO</span>' : "");
 }
@@ -200,7 +335,7 @@ function go(i) {
   if (img) img.onerror = () => { img.onerror = () => { img.onerror = null; img.src = fb; }; img.src = primary; };
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
-  entities.forEach((e, k) => { e.point.pixelSize = k === idx ? 16 : (shown[k].method === "gps" ? 10 : 6); });
+  entities.forEach((e, k) => { const mm = shown[k].method; e.point.pixelSize = k === idx ? 16 : ((mm === "gps" || mm === "manual") ? 10 : 6); });
   if ($("follow").checked)
     viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, 1500), duration: 1.2 });
 }
