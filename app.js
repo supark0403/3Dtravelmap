@@ -274,25 +274,6 @@ function initPanelDrag() {
   });
 }
 
-let API_OK = false;
-async function api(path, method, body) {
-  const r = await fetch(path, { method, headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((j && j.error) || r.status);
-  return j;
-}
-async function waitRebuild() {
-  for (let i = 0; i < 120; i++) {
-    try {
-      const s = await api("/api/rebuild", "GET");
-      $("tripNote").textContent = s.running ? "갱신 중..." : "";
-      if (!s.running) return;
-    } catch (e) { return; }
-    await new Promise(r => setTimeout(r, 2000));
-  }
-}
-
 async function showHome() {
   stop();
   $("hud").classList.add("hidden");
@@ -304,31 +285,13 @@ async function showHome() {
   $("tripNote").textContent = "";
   $("localPath").textContent = LOCAL.root ? "📁 " + LOCAL.root : "";
   try { map.jumpTo({ center: [127.8, 36.3], zoom: 6.2, pitch: 0 }); } catch (e) {}
-  let trips = [];
-  API_OK = false;
-  try { trips = await api("/api/trips", "GET"); API_OK = true; }
-  catch (e) {
-    // 정적 호스팅(Pages 등): 커밋된 예시 여행을 보여주지 않고 내 폴더 모드만 제공
-    $("tripNote").textContent = "📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)";
-  }
-  $("tripAdd").classList.toggle("hidden", !API_OK);
-  $("tripRescan").classList.toggle("hidden", !API_OK);
-  $("tripRescan").onclick = async () => {
-    try { $("tripNote").textContent = "스캔 중..."; await api("/api/rebuild", "POST"); await waitRebuild(); showHome(); }
-    catch (e) { $("tripNote").textContent = "스캔 실패: " + e.message; }
-  };
-  $("tripAdd").onclick = async () => {
-    const name = (prompt("새 여행 폴더 이름") || "").trim();
-    if (!name) return;
-    try { await api("/api/trips", "POST", { name }); await waitRebuild(); showHome(); }
-    catch (e) { $("tripNote").textContent = "추가 실패: " + e.message; }
-  };
   $("triplist").innerHTML = "";
+  if (!LOCAL.order.length) {
+    $("triplist").innerHTML = "<small>📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)</small>";
+    return;
+  }
   // 여행 시작일 순 정렬 (오래된 것 위로, 날짜 없음은 아래로)
-  trips.sort((a, b) => String(a.start || "~").localeCompare(String(b.start || "~")));
   LOCAL.order.sort((x, y) => String(LOCAL.trips[x].meta.start || "~").localeCompare(String(LOCAL.trips[y].meta.start || "~")));
-  if (!trips.length && !LOCAL.order.length) $("triplist").innerHTML = "<small>여행 없음 — 새 폴더를 만들고 사진을 넣으세요.</small>";
-  if (!API_OK && !LOCAL.order.length) $("tripNote").textContent = "📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)";
   LOCAL.order.forEach(n => {
     const m = LOCAL.trips[n].meta;
     const row = document.createElement("div");
@@ -340,60 +303,6 @@ async function showHome() {
     row.appendChild(b);
     $("triplist").appendChild(row);
   });
-  trips.forEach(t => {
-    const row = document.createElement("div");
-    row.className = "tcard";
-    const b = document.createElement("button");
-    b.className = "tripcard";
-    b.innerHTML = `📁 ${t.name}<br><small>${t.total ?? "?"}장 · GPS ${t.gps ?? "?"} · ${t.route_km ?? "?"}km · ${t.start || "?"} ~ ${t.end || "?"}${t.pending ? " · 스캔 필요" : ""}</small>`;
-    b.onclick = () => openTrip(t.id);
-    row.appendChild(b);
-    if (API_OK && t.is_dir) {
-      const rn = document.createElement("button");
-      rn.className = "ticon"; rn.title = "이름 변경"; rn.textContent = "✏️";
-      rn.onclick = async () => {
-        const nn = ((prompt("새 폴더 이름", t.name)) || "").trim();
-        if (!nn || nn === t.name) return;
-        try {
-          await api(`/api/trips/${encodeURIComponent(t.id)}`, "PATCH", { name: nn });
-          if (MANUAL[t.id]) { MANUAL[nn] = MANUAL[t.id]; delete MANUAL[t.id]; saveManual(); }
-          await waitRebuild(); showHome();
-        } catch (e) { $("tripNote").textContent = "변경 실패: " + e.message; }
-      };
-      const del = document.createElement("button");
-      del.className = "ticon danger"; del.title = "폴더 삭제"; del.textContent = "🗑️";
-      del.onclick = async () => {
-        if (!confirm(`'${t.name}' 폴더와 사진 ${t.total ?? "?"}장을 삭제할까?`)) return;
-        try {
-          await api(`/api/trips/${encodeURIComponent(t.id)}`, "DELETE");
-          if (MANUAL[t.id]) { delete MANUAL[t.id]; saveManual(); }
-          await waitRebuild(); showHome();
-        } catch (e) { $("tripNote").textContent = "삭제 실패: " + e.message; }
-      };
-      row.appendChild(rn); row.appendChild(del);
-    }
-    $("triplist").appendChild(row);
-  });
-}
-
-async function openTrip(id, retried) {
-  stop();
-  seenDays.clear();
-  $("mapstatus").textContent = "여행 로딩 중...";
-  try {
-    TL = await (await fetch(`data/trips/${encodeURIComponent(id)}.json`)).json();
-  } catch (e) {
-    // 미스캔 폴더: 스캔 후 1회 재시도
-    if (API_OK && !retried) {
-      $("mapstatus").textContent = "스캔 후 다시 여는 중...";
-      try { await api("/api/rebuild", "POST"); await waitRebuild(); return openTrip(id, true); }
-      catch (e2) {}
-    }
-    $("mapstatus").textContent = "여행 로드 실패: " + e;
-    return;
-  }
-  TL.items.forEach(d => d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0);
-  enterTrip(TL, "📁 " + TL.trip);
 }
 
 function openLocalTrip(name) {
@@ -580,9 +489,6 @@ function applyFilter() {
   map.setFilter("tm-photos", show ? null : ["==", ["get", "method"], "gps"]);
 }
 
-function mediaSrc(d, base) {
-  return `${base}/travel/${encodeURIComponent(TL.trip)}/${encodeURIComponent(d.file)}`;
-}
 function badge(d) {
   const map = { gps: ["GPS확정", "gps"], held: ["같은장소", "held"], held_next: ["같은장소", "heldnext"], manual: ["직접지정", "man"] };
   const [t, c] = map[d.method] || [d.method, "bad"];
@@ -620,23 +526,12 @@ function go(i) {
   const dk = dayKey(idx);
   if (dk !== shownDay) { shownDay = dk; $("daybadge").textContent = dayNum(idx) + "일차"; }
   const isHeic = /\.(heic|heif)$/i.test(d.file || "");
-  const fb = `../travel/${encodeURI(d.file)}`;
-  const primary = d.u || mediaSrc(d, "..");
-  if (d.type === "photo" && isHeic && d.u) {
+  if (d.type === "photo" && isHeic) {
     $("media").innerHTML = `<div class="heic">HEIC 미리보기 미지원<br><small>${d.file}</small><br><a href="${d.u}" download="${d.file}">원본 다운로드</a></div>`;
+  } else if (d.type === "video") {
+    $("media").innerHTML = `<video controls src="${d.u}"></video>`;
   } else {
-    const thumb = d.u || `data/thumbs/${d.thumb || d.id + ".jpg"}`;
-    $("media").innerHTML = d.type === "video"
-      ? (d.u ? `<video controls src="${d.u}"></video>`
-             : `<video controls poster="${thumb}"><source src="${primary}"><source src="${fb}"></video>`)
-      : `<img src="${thumb}" alt="">`;
-    const img = $("media").querySelector("img");
-    if (img) { img.dataset.n = "0"; img.onerror = () => {
-      const n = +img.dataset.n;
-      const cands = d.u ? [] : [primary, fb];
-      if (n < cands.length) { img.dataset.n = String(n + 1); img.src = cands[n]; }
-      else img.onerror = null;
-    }; }
+    $("media").innerHTML = `<img src="${d.u}" alt="">`;
   }
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
@@ -644,7 +539,7 @@ function go(i) {
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
   for (let k = 1; k <= 3; k++) {
     const n = shown[idx + k];
-    if (n) { const im = new Image(); im.src = n.u || `data/thumbs/${n.thumb || n.id + ".jpg"}`; }
+    if (n && n.u) { const im = new Image(); im.src = n.u; }
   }
 }
 
