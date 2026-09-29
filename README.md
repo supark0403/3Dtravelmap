@@ -31,7 +31,8 @@ cd frontend && python -m http.server 8000
 - 실제 지도 3단 전환 (일반/위성/OSM, 실패 시 자동 폴백)
 - 재생/정지, 0.5x~4x 속도, 처음 사진으로(⏮), 홈(⌂)
 - 구간 속도 기반 이동 아이콘: 🚶 도보/체류, 🚇 탈것, ✈️ 비행기 (🚢는 trip JSON에 `transport:"ship"` 지정 시)
-- GPS확정/같은장소 배지, 사진 클릭·재생 바 스크럽, 따라가기 토글
+- GPS확정/같은장소/직접지정 배지, 사진 클릭·재생 바 스크럽, 따라가기 토글
+- 📍 위치지정: GPS 없는 시작 구간 등을 장소 검색(Nominatim)으로 직접 지정. GPS는 절대 안 건드리고, 브라우저에 저장 + JSON 내보내기/가져오기
 
 ## 구조
 - `backend/extract.py` : 사진(EXIF)+영상(ffprobe) 추출 → `items.json`
