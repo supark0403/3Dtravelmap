@@ -106,6 +106,10 @@ async function main() {
     if (timer) { stop(); toggle(); }
   });
   $("showHeld").onchange = applyFilter;
+  $("follow").onchange = () => {
+    if ($("follow").checked) frameCurrent();
+    else if (viewer.trackedEntity) viewer.trackedEntity = undefined;
+  };
   $("close").onclick = () => $("panel").classList.add("hidden");
   $("manualBtn").onclick = () => $("manual").classList.toggle("hidden");
   $("mclose").onclick = () => $("manual").classList.add("hidden");
@@ -141,6 +145,7 @@ async function main() {
 
 async function showHome() {
   stop();
+  if (typeof viewer !== "undefined" && viewer) viewer.trackedEntity = undefined;
   $("hud").classList.add("hidden");
   $("panel").classList.add("hidden");
   $("trips").classList.remove("hidden");
@@ -176,7 +181,7 @@ async function openTrip(id) {
   if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
   renderRules();
   renderAll(0);
-  viewer.flyTo(viewer.entities);
+  frameCurrent();
 }
 
 // anchor + manual route (no interpolation, ever)
@@ -336,8 +341,24 @@ function go(i) {
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
   entities.forEach((e, k) => { const mm = shown[k].method; e.point.pixelSize = k === idx ? 16 : ((mm === "gps" || mm === "manual") ? 10 : 6); });
-  if ($("follow").checked)
-    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, 1500), duration: 1.2 });
+  if ($("follow").checked) {
+    if (viewer.trackedEntity !== mover) viewer.trackedEntity = mover; // 연속 추적: 비행 없음
+  } else if (viewer.trackedEntity) viewer.trackedEntity = undefined;
+  // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
+  for (let k = 1; k <= 3; k++) {
+    const n = shown[idx + k];
+    if (n) { const im = new Image(); im.src = `data/thumbs/${n.thumb || n.id + ".jpg"}`; }
+  }
+}
+
+// 현재 위치로 스냅 + 추적 (비행 애니메이션 없이 즉시)
+function frameCurrent() {
+  const d = shown[idx];
+  if (!d) return;
+  viewer.trackedEntity = undefined;
+  viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, 1600),
+    orientation: { heading: 0, pitch: -0.55, roll: 0 } });
+  if ($("follow").checked) viewer.trackedEntity = mover;
 }
 
 function toggle() {
