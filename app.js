@@ -188,7 +188,6 @@ async function main() {
   $("first").onclick = () => nav(0);
   $("play").onclick = toggle;
   $("scrub").oninput = e => nav(+e.target.value);
-  $("interSkip").onclick = () => finishInterlude();
   const setSpeed = (v) => {
     speed = Math.max(0.1, Math.min(8, +v || 1));
     $("speedSlider").value = speed;
@@ -618,8 +617,7 @@ function stop() {
 // ---- 일차 시작 인터루드: 기상 + 가방싸기 (배속 무시 고정시간, 사진 정지) ----
 let playing = false, interludeTO = null, wakeInt = null, pendingInter = null;
 const seenDays = new Set();
-const INTERLUDE_MS = 3000;
-const WAKE_EMOJIS = ["🛏️", "😪", "⏰", "🧍", "🎒", "🚶"];
+const INTERLUDE_MS = 2400;
 function dayKey(i) { const d = shown[i]; return d ? (d.datetime || "").slice(0, 10) : ""; }
 function isDayStart(i) { return i <= 0 || dayKey(i) !== dayKey(i - 1); }
 function dayNum(i) {
@@ -632,11 +630,15 @@ function interlude(i, advance) {
   if (timer) { clearInterval(timer); timer = null; } // 사진 넘김 정지 (재생 상태 유지)
   seenDays.add(dayKey(i));
   pendingInter = { i, advance };
-  $("interDay").textContent = dayNum(i) + "일차 시작";
-  $("interlude").classList.remove("hidden");
+  // 점 위 아이콘만 침대 → 배낭 → 원래 이동 아이콘 순으로 (고정 시간, 배속 무시)
+  const d = shown[i];
+  const [mode] = segMode(shown[i - 1], d);
+  mover.setLngLat([d.d_lon, d.d_lat]);
+  $("mapstatus").textContent = dayNum(i) + "일차 시작 — 기상 + 짐싸기";
+  const seq = ["🛏️", "🎒", EMOJI[mode]];
   let k = 0;
-  $("wakeEmoji").textContent = WAKE_EMOJIS[0];
-  wakeInt = setInterval(() => { k = (k + 1) % WAKE_EMOJIS.length; $("wakeEmoji").textContent = WAKE_EMOJIS[k]; }, 500);
+  moverEl.textContent = seq[0];
+  wakeInt = setInterval(() => { k = Math.min(k + 1, seq.length - 1); moverEl.textContent = seq[k]; }, 800);
   interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
 }
 function finishInterlude() {
@@ -650,7 +652,7 @@ function cancelInterlude() {
   if (interludeTO) { clearTimeout(interludeTO); interludeTO = null; }
   if (wakeInt) { clearInterval(wakeInt); wakeInt = null; }
   pendingInter = null;
-  const el = $("interlude"); if (el) el.classList.add("hidden");
+  if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 }
 // 수동 이동: 인터루드 취소 후 이동, 재생 중이면 타이머 복구
 function nav(i) {
