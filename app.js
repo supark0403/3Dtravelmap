@@ -215,9 +215,6 @@ async function main() {
     map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
   }
 
-  moverEmo = EMOJI.walk;
-  moverPos = [0, 0];
-
   document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => {
     if (b.dataset.map === "bld") { buildingsOn = !buildingsOn; applyBuildings(); return; }
     baseFailed = {}; setBase(b.dataset.map);
@@ -721,4 +718,4 @@ function nav(i) {
   if (playing && !timer) startTimer();
 }
 
-main().catch(e => { const t = $("triplist"); if (t) t.innerHTML = "초기화 실패: " + e; });
+main().catch(e => { const t = $("triplist"); if (t) t.innerHTML = "초기화 실패: " + e; const m = $("mapstatus"); if (m) m.textContent = "초기화 실패: " + e; });
