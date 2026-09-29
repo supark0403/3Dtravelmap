@@ -323,6 +323,9 @@ async function showHome() {
     catch (e) { $("tripNote").textContent = "추가 실패: " + e.message; }
   };
   $("triplist").innerHTML = "";
+  // 여행 시작일 순 정렬 (오래된 것 위로, 날짜 없음은 아래로)
+  trips.sort((a, b) => String(a.start || "~").localeCompare(String(b.start || "~")));
+  LOCAL.order.sort((x, y) => String(LOCAL.trips[x].meta.start || "~").localeCompare(String(LOCAL.trips[y].meta.start || "~")));
   if (!trips.length && !LOCAL.order.length) $("triplist").innerHTML = "<small>여행 없음 — 새 폴더를 만들고 사진을 넣으세요.</small>";
   if (!API_OK && !LOCAL.order.length) $("tripNote").textContent = "📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)";
   LOCAL.order.forEach(n => {
