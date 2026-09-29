@@ -1,6 +1,6 @@
 // 로컬 폴더 모드: 서버 없이 브라우저가 직접 읽음 (File API + exifr + blob URL).
 // 사진은 업로드되지 않고 로컬에서만 처리됨. 영상 GPS는 미지원(시간 hold로 배치).
-const LOCAL = { trips: {}, order: [], root: "" };
+const LOCAL = { trips: {}, order: [], root: "", write: false };
 const LOCAL_IMG = /\.(jpe?g|png|heic|heif)$/i;
 const LOCAL_VID = /\.(mp4|mov|m4v)$/i;
 const LOCAL_TS = /(\d{8})_(\d{6})/;
@@ -21,7 +21,7 @@ async function parseLocalFiles(fileList, onProgress) {
   if (!files.length) throw new Error("사진/영상이 없음");
   const groups = {};
   for (const f of files) {
-    const parts = (f.webkitRelativePath || f.name).split("/");
+    const parts = (f._relpath || f.webkitRelativePath || f.name).split("/");
     const trip = parts.length > 2 ? parts[1] : parts[0];
     (groups[trip] || (groups[trip] = [])).push(f);
   }
@@ -51,7 +51,7 @@ async function parseLocalFile(f, trip, k) {
   const m = { id: "m" + String(k).padStart(4, "0"), trip, file: f.name,
     type: LOCAL_VID.test(f.name) ? "video" : "photo",
     has_gps: false, lat: null, lon: null, datetime: null, size: f.size,
-    u: URL.createObjectURL(f) };
+    u: URL.createObjectURL(f), _handle: f._handle || null };
   try {
     if (m.type === "photo" && typeof exifr !== "undefined") {
       const ex = await exifr.parse(f, { tiff: true, exif: true, gps: true }).catch(() => null);
@@ -118,4 +118,65 @@ function buildLocalTimeline(trip, items) {
     end: dated.length ? dated[dated.length - 1].datetime : null,
   };
   return { trip, meta, places: [], route: anchors.map(a => [a.lon, a.lat]), items: out };
+}
+
+// ---- 쓰기 허용 폴더 선택 (File System Access API, 폴백은 읽기 전용) ----
+async function pickLocalFolderFS() {
+  const dir = await window.showDirectoryPicker({ mode: "readwrite" });
+  let perm = "granted";
+  try { perm = await dir.requestPermission({ mode: "readwrite" }); } catch (e) {}
+  LOCAL.write = (perm === "granted");
+  const files = [];
+  async function walk(h, trail) {
+    for await (const [name, e] of h.entries()) {
+      if (e.kind === "file") {
+        const f = await e.getFile();
+        f._handle = e;
+        f._relpath = [dir.name, ...trail, name].join("/");
+        files.push(f);
+      } else if (e.kind === "directory") {
+        await walk(e, [...trail, name]);
+      }
+    }
+  }
+  await walk(dir, []);
+  return files;
+}
+
+// ---- 원본 JPEG에 GPS 기록 (piexif) ----
+function degToDms(v) {
+  const d = Math.floor(v), m = Math.floor((v - d) * 60), s = ((v - d) * 60 - m) * 60;
+  return [[d, 1], [m, 1], [Math.round(s * 100), 100]];
+}
+function buildGpsJpeg(buf, lat, lon) {
+  if (typeof piexif === "undefined") throw new Error("piexif 로드 실패");
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  }
+  let ex;
+  try { ex = piexif.load(bin); }
+  catch (e) { ex = { "0th": {}, Exif: {}, GPS: {}, Interop: {}, "1st": {}, thumbnail: null }; }
+  ex.GPS[piexif.GPSIFD.GPSLatitudeRef] = lat < 0 ? "S" : "N";
+  ex.GPS[piexif.GPSIFD.GPSLatitude] = degToDms(Math.abs(lat));
+  ex.GPS[piexif.GPSIFD.GPSLongitudeRef] = lon < 0 ? "W" : "E";
+  ex.GPS[piexif.GPSIFD.GPSLongitude] = degToDms(Math.abs(lon));
+  const out = piexif.insert(piexif.dump(ex), bin);
+  const u8 = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) u8[i] = out.charCodeAt(i);
+  return u8;
+}
+async function writeGpsExif(handle, lat, lon) {
+  const u8 = buildGpsJpeg(await (await handle.getFile()).arrayBuffer(), lat, lon);
+  const w = await handle.createWritable();
+  await w.write(u8);
+  await w.close();
+  // 검증: 다시 읽어 좌표 확인
+  const vf = await handle.getFile();
+  const ex = await exifr.parse(vf, { gps: true }).catch(() => null);
+  if (!ex || Math.abs((ex.latitude ?? 9999) - lat) > 0.0002 || Math.abs((ex.longitude ?? 9999) - lon) > 0.0002) {
+    throw new Error("검증 실패");
+  }
 }
