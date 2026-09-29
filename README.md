@@ -1,18 +1,18 @@
 # 3D Travel Map
 
-여행 사진/영상 묶음을 3D 지도 위에 시간순 여행 경로로 시각화.
+여행 사진/영상 묶음을 실제 3D 지도 위에 시간순 여행 경로로 시각화.
 
-## 동작 방식 (요구사항 그대로)
+## 배치 규칙 (step-hold, 보간 없음)
 1. EXIF(사진) / ffprobe(영상)에서 촬영 시간 + GPS 추출
-2. GPS+시간 있는 파일들로 경로 틀(anchor route) 구성
-3. 시간만 있는 파일은 앞뒤 anchor 사이 시간 가중 보간으로 배치 (같은 장소 체류면 자동 스냅)
-4. 한쪽에만 anchor가 있으면 가장 가까운 쪽에 배치, 시간 자체가 없으면 미배치
-5. anchor들을 150m 기준으로 장소 클러스터링
+2. GPS+시간 파일 = 앵커. 경로선은 앵커끼리만 연결
+3. 시간만 있는 사진은 **직전 앵커 위치에 그대로 쌓음** (경로 중간에 배치하지 않음)
+4. 첫 앵커보다 이른 사진은 첫 앵커 위치에, 시간이 없으면 미배치
+5. 앵커들을 150m 기준으로 장소 클러스터링
 
-## GPS 주의 (sample 실측)
-- 정상 GPS(위경도 태그): 129개만 anchor로 사용
-- 아이폰 썸네일 복사본(`UUID_1_105_c.jpg`)의 비표준 GPS 태그(0,5,31)는 좌표가 아니라서 **GPS 없음**으로 처리 → 시간 보간 대상
-- 영상: `creation_time` + `location(+33.95+130.94/)` 태그 사용
+## 여행(폴더) 단위
+- 입력 폴더의 **하위 폴더 1개 = 1개 여행**. 폴더 안에 넣은 사진들이 그 여행의 경로가 됨
+- 하위 폴더가 없으면 폴더 전체가 1개 여행
+- 실행하면 여행 목록(홈) → 여행 선택 → 경로/재생 화면
 
 ## 실행
 ```bash
@@ -20,16 +20,22 @@ pip install -r backend/requirements.txt
 # ffmpeg/ffprobe 필요 (영상 지원용)
 
 python backend/extract.py sample frontend/data/items.json
-python backend/build_path.py frontend/data/items.json frontend/data/timeline.json
+python backend/build_path.py frontend/data/items.json frontend/data/trips
 python backend/thumbs.py frontend/data/items.json sample frontend/data/thumbs
 
 cd frontend && python -m http.server 8000
 # http://localhost:8000
 ```
 
+## 프론트엔드 기능
+- 실제 지도 3단 전환 (일반/위성/OSM, 실패 시 자동 폴백)
+- 재생/정지, 0.5x~4x 속도, 처음 사진으로(⏮), 홈(⌂)
+- 구간 속도 기반 이동 아이콘: 🚶 도보/체류, 🚇 탈것, ✈️ 비행기 (🚢는 trip JSON에 `transport:"ship"` 지정 시)
+- GPS확정/같은장소 배지, 사진 클릭·재생 바 스크럽, 따라가기 토글
+
 ## 구조
-- `backend/extract.py` : 사진(EXIF)+영상(ffprobe) 메타 추출 → `items.json`
-- `backend/build_path.py` : 시간 정렬 + anchor/보간 + 장소 클러스터 → `timeline.json`
-- `backend/thumbs.py` : 팝업용 썸네일 생성 (사진 리사이즈 / 영상 1초 프레임)
-- `frontend/` : CesiumJS(OSM, 토큰 불필요) 3D 지도 + 타임라인 재생 UI
+- `backend/extract.py` : 사진(EXIF)+영상(ffprobe) 추출 → `items.json`
+- `backend/build_path.py` : 시간 정렬 + step-hold 배치 → `trips/<여행>.json` + `trips.json`
+- `backend/thumbs.py` : 팝업 썸네일 (사진 리사이즈 / 영상 1초 프레임)
+- `frontend/` : CesiumJS 3D 지도 + 여행/타임라인 UI
 - `sample/` : 테스트 원본 (git 제외, 로컬 전용)

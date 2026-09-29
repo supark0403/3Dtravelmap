@@ -1,14 +1,9 @@
-"""EXIF + video metadata extractor.
-
-Images: Pillow (DateTimeOriginal + standard GPS IFD only).
-Videos: ffprobe (creation_time + ISO6709 location tag).
-
-Weird iPhone-thumbnail GPS (tags 0,5,31 only, no lat/lon) is treated as NO GPS.
-"""
+"""EXIF + video metadata extractor. Each subfolder of input = one trip."""
 import json
 import os
 import re
 import subprocess
+import sys
 from datetime import datetime, timezone
 
 from PIL import Image
@@ -21,7 +16,6 @@ ISO6709 = re.compile(r"([+-]\d+(?:\.\d+))([+-]\d+(?:\.\d+))")
 
 
 def parse_exif_dt(s):
-    # "2026:08:17 07:06:44"
     try:
         return datetime.strptime(s.strip(), "%Y:%m:%d %H:%M:%S")
     except (ValueError, AttributeError):
@@ -37,7 +31,7 @@ def dms_to_deg(dms):
 
 
 def gps_from_exif(ex):
-    """Return (lat, lon) or None. Requires standard lat/lon tags."""
+    """(lat, lon) or None. Standard lat/lon tags required (thumbnail residue ignored)."""
     try:
         gps = ex.get_ifd(IFD.GPSInfo)
     except Exception:
@@ -69,9 +63,9 @@ def extract_image(path):
                 ex_ifd = ex.get_ifd(IFD.Exif)
             except Exception:
                 ex_ifd = {}
-            dt = (ex_ifd.get(36867) or ex.get(306))  # DateTimeOriginal else DateTime
+            dt = ex_ifd.get(36867) or ex.get(306)
             if isinstance(dt, str):
-                out["datetime"] = dt.replace(":", "-", 2)  # "2026-08-17 07:06:44"
+                out["datetime"] = dt.replace(":", "-", 2)
             g = gps_from_exif(ex)
             if g:
                 out["lat"], out["lon"] = g
@@ -106,15 +100,12 @@ def extract_video(path):
         tags = info.get("format", {}).get("tags", {})
         ct = tags.get("creation_time", "")
         if ct:
-            # "2026-08-17T23:54:43.000000Z" (UTC) -> KST local naive
             try:
                 dt_utc = datetime.fromisoformat(ct.replace("Z", "+00:00"))
-                dt_local = dt_utc.astimezone(timezone.utc).astimezone()
-                out["datetime"] = dt_local.strftime("%Y-%m-%d %H:%M:%S")
+                out["datetime"] = dt_utc.astimezone().strftime("%Y-%m-%d %H:%M:%S")
             except ValueError:
                 pass
-        loc = tags.get("location") or tags.get("location-eng") or ""
-        g = parse_iso6709(loc)
+        g = parse_iso6709(tags.get("location") or tags.get("location-eng") or "")
         if g:
             out["lat"], out["lon"] = g
             out["has_gps"] = True
@@ -145,40 +136,57 @@ def fallback_from_filename(path, out):
             pass
 
 
-def scan(input_dir):
+def scan_one(folder, trip, start_idx):
     items = []
-    files = sorted(os.listdir(input_dir))
-    for i, name in enumerate(files):
+    for name in sorted(os.listdir(folder)):
         ext = os.path.splitext(name)[1].lower()
         if ext not in IMG_EXTS and ext not in VID_EXTS:
             continue
-        full = os.path.join(input_dir, name)
+        full = os.path.join(folder, name)
         if not os.path.isfile(full):
             continue
-        if ext in VID_EXTS:
-            meta = extract_video(full)
-        else:
-            meta = extract_image(full)
+        meta = extract_video(full) if ext in VID_EXTS else extract_image(full)
         fallback_from_filename(full, meta)
-        meta["id"] = f"m{i:04d}"
-        meta["file"] = os.path.basename(full).replace("\\", "/")
-        meta["relpath"] = f"{os.path.basename(input_dir)}/{meta['file']}"
+        meta["id"] = f"m{start_idx:04d}"
+        meta["trip"] = trip
+        meta["thumb"] = f"{trip}_{meta['id']}.jpg"
+        meta["file"] = name.replace("\\", "/")
+        meta["relpath"] = f"{trip}/{meta['file']}" if trip != os.path.basename(folder) else meta["file"]
         try:
             meta["size"] = os.path.getsize(full)
         except OSError:
             meta["size"] = None
         items.append(meta)
-    return items
+        start_idx += 1
+    return items, start_idx
+
+
+def scan_trips(root):
+    """Subfolder = one trip. Media directly in root = trip named after root."""
+    trips = {}
+    idx = 0
+    root_files, _ = scan_one(root, os.path.basename(root.rstrip("/\\")), idx)
+    if root_files:
+        trips[root_files[0]["trip"]] = root_files
+        idx += len(root_files)
+    for name in sorted(os.listdir(root)):
+        full = os.path.join(root, name)
+        if not os.path.isdir(full):
+            continue
+        items, idx = scan_one(full, name, idx)
+        if items:
+            trips[name] = items
+    return trips
 
 
 if __name__ == "__main__":
-    import sys
     src = sys.argv[1] if len(sys.argv) > 1 else "sample"
     dst = sys.argv[2] if len(sys.argv) > 2 else "frontend/data/items.json"
-    items = scan(src)
+    trips = scan_trips(src)
+    items = [m for t in trips.values() for m in t]
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     with open(dst, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=1)
     gps = sum(1 for m in items if m["has_gps"])
     dt = sum(1 for m in items if m.get("datetime"))
-    print(f"scanned={len(items)} with_datetime={dt} with_gps={gps} no_gps={len(items)-gps} -> {dst}")
+    print(f"trips={list(trips)} scanned={len(items)} with_datetime={dt} with_gps={gps} -> {dst}")

@@ -11,15 +11,28 @@
 </head>
 <body>
 <div id="cesium"></div>
-<div id="hud">
-  <div id="title">3D Travel Map <span id="stats"></span></div>
+<div id="topbar">
+  <button id="home" title="여행 목록">⌂ 홈</button>
+  <span id="tripname"></span>
+  <span id="mapstatus"></span>
+  <span class="spacer"></span>
+  <button data-map="street" class="mapbtn on">🗺 일반</button>
+  <button data-map="sat" class="mapbtn">🛰 위성</button>
+  <button data-map="osm" class="mapbtn">🧭 OSM</button>
+</div>
+<div id="trips" class="hidden"><h2>여행 선택</h2><div id="triplist"></div></div>
+<div id="hud" class="hidden">
+  <div id="title"><span id="stats"></span></div>
   <div id="controls">
     <button id="prev">◀</button>
     <button id="play">▶ 재생</button>
     <button id="next">▶</button>
+    <button id="first" title="첫 사진 위치로">⏮ 처음</button>
     <input id="scrub" type="range" min="0" max="0" value="0" step="1">
-    <select id="speed"><option value="800">빠름</option><option value="2000" selected>보통</option><option value="4000">느림</option></select>
-    <label><input type="checkbox" id="showInterp" checked> 추정 표시</label>
+    <span id="speeds">
+      <button data-s="0.5">0.5x</button><button data-s="1" class="on">1x</button><button data-s="2">2x</button><button data-s="4">4x</button>
+    </span>
+    <label><input type="checkbox" id="showHeld" checked> 추정 표시</label>
     <label><input type="checkbox" id="follow" checked> 따라가기</label>
   </div>
   <div id="cur"></div>

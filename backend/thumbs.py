@@ -1,4 +1,4 @@
-"""Generate small thumbnails for frontend popups. Photos: Pillow. Videos: ffmpeg frame."""
+"""Thumbnails for frontend popups. Photos: Pillow. Videos: ffmpeg frame."""
 import json
 import os
 import subprocess
@@ -7,6 +7,13 @@ import sys
 from PIL import Image, ImageOps
 
 SIZE = (480, 480)
+
+
+def src_of(root, m):
+    c1 = os.path.join(root, m.get("trip", ""), m["file"])
+    if os.path.exists(c1):
+        return c1
+    return os.path.join(root, m["file"])
 
 
 def make_thumb(src, dst, is_video):
@@ -44,14 +51,8 @@ if __name__ == "__main__":
     items = json.load(open(items_path, encoding="utf-8"))
     ok = skip = fail = 0
     for m in items:
-        if m.get("type") == "video":
-            dst = os.path.join(out_dir, m["id"] + ".jpg")
-            r = make_thumb(os.path.join(src_dir, m["file"]), dst, True)
-        elif m.get("type") == "photo":
-            dst = os.path.join(out_dir, m["id"] + ".jpg")
-            r = make_thumb(os.path.join(src_dir, m["file"]), dst, False)
-        else:
-            continue
+        dst = os.path.join(out_dir, m.get("thumb", m["id"] + ".jpg"))
+        r = make_thumb(src_of(src_dir, m), dst, m.get("type") == "video")
         if r == "ok":
             ok += 1
         elif r == "skip":

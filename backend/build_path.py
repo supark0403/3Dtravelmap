@@ -1,11 +1,10 @@
-"""Path builder: GPS+time anchors first, time-only items interpolated.
+"""Path builder (per trip).
 
-- sort by datetime
-- anchors = items with valid GPS
-- no-GPS item: linear time-weighted interpolation between prev/next anchors
-  (same place stay -> prev==next so interpolation == snap, matches spec).
-  One-sided -> snap to nearest anchor. No anchors at all -> unplaced.
-- sequential place clustering on anchors (150m threshold).
+Rule (step-hold, no interpolation):
+- GPS+time items are anchors.
+- A time-only item sits AT the last anchor seen (held).
+- If no earlier anchor exists, it sits at the next anchor (held_next).
+- Nothing is placed mid-route between two anchors.
 """
 import json
 import math
@@ -35,12 +34,11 @@ def to_ts(s):
 def build(items):
     for m in items:
         m["_ts"] = to_ts(m.get("datetime"))
-    dated = [m for m in items if m["_ts"] is not None]
+    dated = sorted([m for m in items if m["_ts"] is not None],
+                   key=lambda m: (m["_ts"], m["id"]))
     nodate = [m for m in items if m["_ts"] is None]
-    dated.sort(key=lambda m: (m["_ts"], m["id"]))
     anchors = [m for m in dated if m["has_gps"]]
 
-    # place clustering over anchors
     places = []
     for a in anchors:
         if places and haversine_m(a["lat"], a["lon"],
@@ -58,51 +56,27 @@ def build(items):
                            "count": 1, "start": a["datetime"], "end": a["datetime"]})
             a["_place"] = pid
 
-    # anchor index in dated order for neighbour search
-    anchor_pos = {id(m): k for k, m in enumerate(anchors)}
-    dated_anchor_ts = sorted(m["_ts"] for m in anchors)
-
     out_items = []
-    n_interp = n_prev = n_next = 0
+    last_anchor = None
     for m in dated:
         d = dict(m)
         if m["has_gps"]:
-            d["d_lat"], d["d_lon"] = m["lat"], m["lon"]
-            d["method"] = "gps"
-            d["place"] = m.get("_place")
+            last_anchor = m
+            d.update({"d_lat": m["lat"], "d_lon": m["lon"],
+                      "method": "gps", "at": m["id"], "place": m.get("_place")})
+        elif last_anchor is not None:
+            d.update({"d_lat": last_anchor["lat"], "d_lon": last_anchor["lon"],
+                      "method": "held", "at": last_anchor["id"]})
         else:
-            prev = next_ = None
-            for a in anchors:
-                if a["_ts"] <= m["_ts"]:
-                    if prev is None or a["_ts"] > prev["_ts"]:
-                        prev = a
-                if a["_ts"] >= m["_ts"]:
-                    if next_ is None or a["_ts"] < next_["_ts"]:
-                        next_ = a
-            if prev and next_ and next_["_ts"] > prev["_ts"]:
-                f = (m["_ts"] - prev["_ts"]) / (next_["_ts"] - prev["_ts"])
-                d["d_lat"] = prev["lat"] + (next_["lat"] - prev["lat"]) * f
-                d["d_lon"] = prev["lon"] + (next_["lon"] - prev["lon"]) * f
-                d["method"] = "interpolated"
-                d["between"] = [prev["id"], next_["id"]]
-                n_interp += 1
-            elif prev:
-                d["d_lat"], d["d_lon"] = prev["lat"], prev["lon"]
-                d["method"] = "prev_anchor"
-                d["between"] = [prev["id"], prev["id"]]
-                n_prev += 1
-            elif next_:
-                d["d_lat"], d["d_lon"] = next_["lat"], next_["lon"]
-                d["method"] = "next_anchor"
-                d["between"] = [next_["id"], next_["id"]]
-                n_next += 1
+            nxt = next((a for a in anchors if a["_ts"] >= m["_ts"]), None)
+            if nxt is not None:
+                d.update({"d_lat": nxt["lat"], "d_lon": nxt["lon"],
+                          "method": "held_next", "at": nxt["id"]})
             else:
-                d["d_lat"] = d["d_lon"] = None
-                d["method"] = "unplaced"
+                d.update({"d_lat": None, "d_lon": None, "method": "unplaced"})
         d.pop("_ts", None)
         d.pop("_place", None)
         out_items.append(d)
-
     for m in nodate:
         d = dict(m)
         d.update({"d_lat": None, "d_lon": None, "method": "no_datetime"})
@@ -113,15 +87,13 @@ def build(items):
     dist = sum(haversine_m(anchors[i]["lat"], anchors[i]["lon"],
                            anchors[i + 1]["lat"], anchors[i + 1]["lon"])
                for i in range(len(anchors) - 1))
-
     meta = {
         "total": len(items),
         "dated": len(dated),
         "no_datetime": len(nodate),
         "gps": len(anchors),
-        "interpolated": n_interp,
-        "prev_anchor": n_prev,
-        "next_anchor": n_next,
+        "held": sum(1 for d in out_items if d["method"] == "held"),
+        "held_next": sum(1 for d in out_items if d["method"] == "held_next"),
         "unplaced": sum(1 for d in out_items if d["method"] in ("unplaced", "no_datetime")),
         "places": len(places),
         "route_km": round(dist / 1000, 2),
@@ -133,10 +105,20 @@ def build(items):
 
 if __name__ == "__main__":
     src = sys.argv[1] if len(sys.argv) > 1 else "frontend/data/items.json"
-    dst = sys.argv[2] if len(sys.argv) > 2 else "frontend/data/timeline.json"
+    out_dir = sys.argv[2] if len(sys.argv) > 2 else "frontend/data/trips"
     items = json.load(open(src, encoding="utf-8"))
-    tl = build(items)
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    with open(dst, "w", encoding="utf-8") as f:
-        json.dump(tl, f, ensure_ascii=False, indent=1)
-    print(f"meta={json.dumps(tl['meta'], ensure_ascii=False)} -> {dst}")
+    by_trip = {}
+    for m in items:
+        by_trip.setdefault(m.get("trip", "main"), []).append(m)
+    os.makedirs(out_dir, exist_ok=True)
+    index = []
+    for trip, ms in sorted(by_trip.items()):
+        tl = build(ms)
+        tl["trip"] = trip
+        with open(os.path.join(out_dir, f"{trip}.json"), "w", encoding="utf-8") as f:
+            json.dump(tl, f, ensure_ascii=False, indent=1)
+        index.append({"id": trip, "name": trip, **tl["meta"]})
+        print(f"trip={trip} meta={json.dumps(tl['meta'], ensure_ascii=False)}")
+    with open(os.path.join(os.path.dirname(out_dir), "trips.json"), "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, indent=1)
+    print(f"index {len(index)} trips -> {out_dir}/../trips.json")

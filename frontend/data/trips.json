@@ -1,0 +1,17 @@
+[
+ {
+  "id": "sample",
+  "name": "sample",
+  "total": 817,
+  "dated": 812,
+  "no_datetime": 5,
+  "gps": 129,
+  "held": 672,
+  "held_next": 11,
+  "unplaced": 5,
+  "places": 31,
+  "route_km": 72.03,
+  "start": "2026-08-17 06:08:17",
+  "end": "2026-08-20 14:02:22"
+ }
+]
