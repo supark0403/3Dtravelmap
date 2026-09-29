@@ -47,7 +47,7 @@ def make_thumb(src, dst, is_video):
 
 if __name__ == "__main__":
     items_path = sys.argv[1] if len(sys.argv) > 1 else "frontend/data/items.json"
-    src_dir = sys.argv[2] if len(sys.argv) > 2 else "sample"
+    src_dir = sys.argv[2] if len(sys.argv) > 2 else "travel"
     out_dir = sys.argv[3] if len(sys.argv) > 3 else "frontend/data/thumbs"
     os.makedirs(out_dir, exist_ok=True)
     items = json.load(open(items_path, encoding="utf-8"))

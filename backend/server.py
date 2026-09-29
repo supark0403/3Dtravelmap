@@ -1,6 +1,6 @@
-"""3Dtravelmap local server: static frontend + sample media + trip-folder API.
+"""3Dtravelmap local server: static frontend + travel media + trip-folder API.
 
-Run from repo root:  python backend/server.py [--port 8000] [--sample sample]
+Run from repo root:  python backend/server.py [--port 8000] [--sample travel]
 
 API (JSON):
   GET    /api/trips            -> [{id, name, total, gps, ..., is_dir}]
@@ -24,7 +24,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SAMPLE_ROOT = os.path.join(ROOT, "sample")
+SAMPLE_ROOT = os.path.join(ROOT, "travel")
 FRONTEND_DIR = os.path.join(ROOT, "frontend")
 DATA_DIR = os.path.join(FRONTEND_DIR, "data")
 ITEMS_JSON = os.path.join(DATA_DIR, "items.json")
@@ -259,10 +259,10 @@ class Handler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/trips":
             self._json(trips_from_index())
             return
-        if parsed.path.startswith("/sample/"):
+        if parsed.path.startswith("/travel/"):
             import mimetypes
             import shutil as _sh
-            rel = urllib.parse.unquote(parsed.path[len("/sample/"):])
+            rel = urllib.parse.unquote(parsed.path[len("/travel/"):])
             full = os.path.normpath(os.path.join(SAMPLE_ROOT, rel))
             root_n = os.path.normpath(SAMPLE_ROOT)
             if full != root_n and not full.startswith(root_n + os.sep):
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     args = ap.parse_args()
     SAMPLE_ROOT = os.path.abspath(args.sample)
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"serving app at http://localhost:{args.port}  sample={SAMPLE_ROOT}", flush=True)
+    print(f"serving app at http://localhost:{args.port}  travel={SAMPLE_ROOT}", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

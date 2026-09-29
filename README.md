@@ -25,9 +25,9 @@ python backend/server.py
 서버가 리빌드(스캔→썸네일→경로)를 대신 수행. 썸네일 파일명은 내용 기반 해시라 폴더 이름 변경·재스캔에도 유지됨.
 수동 파이프라인도 가능:
 ```bash
-python backend/extract.py sample frontend/data/items.json
+python backend/extract.py travel frontend/data/items.json
 python backend/build_path.py frontend/data/items.json frontend/data/trips
-python backend/thumbs.py frontend/data/items.json sample frontend/data/thumbs
+python backend/thumbs.py frontend/data/items.json travel frontend/data/thumbs
 ```
 
 ## 프론트엔드 기능
@@ -46,4 +46,4 @@ python backend/thumbs.py frontend/data/items.json sample frontend/data/thumbs
 - `backend/build_path.py` : 시간 정렬 + step-hold 배치 → `trips/<여행>.json` + `trips.json`
 - `backend/thumbs.py` : 팝업 썸네일 (사진 리사이즈 / 영상 1초 프레임)
 - `frontend/` : MapLibre 3D 지도 + 여행/타임라인 UI (OpenFreeMap 벡터, AWS DEM 지형 — 전부 키 불필요)
-- `sample/` : 테스트 원본 (git 제외, 로컬 전용)
+- `travel/` : 여행 원본 폴더 (하위 폴더 1개 = 1개 여행, git 제외, 로컬 전용)

@@ -188,11 +188,14 @@ async function main() {
   $("first").onclick = () => go(0);
   $("play").onclick = toggle;
   $("scrub").oninput = e => go(+e.target.value);
-  document.querySelectorAll("#speeds button").forEach(b => b.onclick = () => {
-    speed = +b.dataset.s;
-    document.querySelectorAll("#speeds button").forEach(x => x.classList.toggle("on", x === b));
+  const setSpeed = (v) => {
+    speed = Math.max(0.1, Math.min(8, +v || 1));
+    $("speedSlider").value = speed;
+    $("speedVal").textContent = speed.toFixed(1) + "x";
     if (timer) { stop(); toggle(); }
-  });
+  };
+  $("speedSlider").oninput = e => setSpeed(e.target.value);
+  $("speedReset").onclick = () => setSpeed(1);
   $("showHeld").onchange = applyFilter;
   $("follow").onchange = () => { if ($("follow").checked) frameCurrent(); };
   $("close").onclick = () => $("panel").classList.add("hidden");
@@ -521,7 +524,7 @@ function applyFilter() {
 }
 
 function mediaSrc(d, base) {
-  return `${base}/sample/${encodeURIComponent(TL.trip)}/${encodeURIComponent(d.file)}`;
+  return `${base}/travel/${encodeURIComponent(TL.trip)}/${encodeURIComponent(d.file)}`;
 }
 function badge(d) {
   const map = { gps: ["GPS확정", "gps"], held: ["같은장소", "held"], held_next: ["같은장소", "heldnext"], manual: ["직접지정", "man"] };
@@ -550,7 +553,7 @@ function go(i) {
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
   const thumb = `data/thumbs/${d.thumb || d.id + ".jpg"}`;
-  const fb = `../sample/${encodeURI(d.file)}`;
+  const fb = `../travel/${encodeURI(d.file)}`;
   const primary = mediaSrc(d, "..");
   $("media").innerHTML = d.type === "video"
     ? `<video controls poster="${thumb}"><source src="${primary}"><source src="${fb}"></video>`

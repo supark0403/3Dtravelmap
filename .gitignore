@@ -1,5 +1,5 @@
-# 대용량 여행 사진 원본 - GitHub에 푸시하지 않음 (1.3GB+)
-sample/
+# 대용량 여행 사진 원본 - GitHub에 푸시하지 않음
+travel/
 *.jpg
 *.jpeg
 *.png
