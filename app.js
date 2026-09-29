@@ -99,7 +99,7 @@ function renderTripLayers() {
     map.addSource("tm-route-src", { type: "geojson",
       data: { type: "Feature", geometry: { type: "LineString", coordinates: pts } } });
     map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
-      paint: { "line-color": "#ffd54f", "line-width": 3 } });
+      paint: { "line-color": "#2196f3", "line-width": 3 } });
   }
   map.addSource("tm-photos-src", { type: "geojson",
     data: { type: "FeatureCollection", features: shown.map((d, i) => ({
@@ -152,6 +152,7 @@ async function main() {
   $("showHeld").onchange = applyFilter;
   $("follow").onchange = () => { if ($("follow").checked) frameCurrent(); };
   $("close").onclick = () => $("panel").classList.add("hidden");
+  initPanelDrag();
   $("manualBtn").onclick = () => $("manual").classList.toggle("hidden");
   $("mclose").onclick = () => $("manual").classList.add("hidden");
   $("msearch").onclick = mSearch;
@@ -182,6 +183,34 @@ async function main() {
     e.target.value = "";
   };
   showHome();
+}
+
+// 사진 패널 드래그 이동 (위치 기억)
+function initPanelDrag() {
+  const el = $("panel");
+  try {
+    const saved = JSON.parse(localStorage.getItem("tm_panel_pos") || "null");
+    if (saved && +saved.top >= 0 && +saved.left >= 0) {
+      el.style.top = saved.top + "px"; el.style.left = saved.left + "px"; el.style.right = "auto";
+    }
+  } catch (e) {}
+  let sx, sy, ox, oy, dragging = false;
+  el.addEventListener("mousedown", (e) => {
+    if (e.target.closest("button,input,img,video,a,select,textarea")) return;
+    dragging = true; sx = e.clientX; sy = e.clientY;
+    const r = el.getBoundingClientRect(); ox = r.left; oy = r.top;
+    el.style.left = ox + "px"; el.style.top = oy + "px"; el.style.right = "auto";
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    el.style.left = Math.max(0, ox + e.clientX - sx) + "px";
+    el.style.top = Math.max(0, oy + e.clientY - sy) + "px";
+  });
+  window.addEventListener("mouseup", () => {
+    if (!dragging) return; dragging = false;
+    try { localStorage.setItem("tm_panel_pos", JSON.stringify({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) })); } catch (e) {}
+  });
 }
 
 let API_OK = false;
@@ -468,7 +497,6 @@ function hopKm(a, b) {
   if (!a || !b) return 0;
   return Math.hypot((b.d_lon - a.d_lon) * 91, (b.d_lat - a.d_lat) * 111);
 }
-function zoomForHop(km) { return Math.max(8.5, Math.min(16, 16 - Math.log2(km + 1) * 1.6)); }
 
 function go(i) {
   idx = Math.max(0, Math.min(shown.length - 1, i));
@@ -494,9 +522,8 @@ function go(i) {
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
   if ($("follow").checked) {
-    // 배속 적응 비행: 아이콘 활공과 같은 시간 → 끊김 없이 연속 이동
-    const km = hopKm(shown[idx - 1], d);
-    map.flyTo({ center: [d.d_lon, d.d_lat], zoom: zoomForHop(km), pitch: 62,
+    // 줌 고정 추적: 줌아웃 없이 현재 줌 그대로 쭉 따라감
+    map.flyTo({ center: [d.d_lon, d.d_lat], zoom: map.getZoom(), pitch: 62,
       duration: dur, essential: true });
   }
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
