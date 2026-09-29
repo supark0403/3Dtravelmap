@@ -143,23 +143,84 @@ async function main() {
   showHome();
 }
 
+let API_OK = false;
+async function api(path, method, body) {
+  const r = await fetch(path, { method, headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j && j.error) || r.status);
+  return j;
+}
+async function waitRebuild() {
+  for (let i = 0; i < 120; i++) {
+    try {
+      const s = await api("/api/rebuild", "GET");
+      $("tripNote").textContent = s.running ? "갱신 중..." : "";
+      if (!s.running) return;
+    } catch (e) { return; }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+
 async function showHome() {
   stop();
   if (typeof viewer !== "undefined" && viewer) viewer.trackedEntity = undefined;
+  $("home").onclick = showHome;
   $("hud").classList.add("hidden");
   $("panel").classList.add("hidden");
+  $("manual").classList.add("hidden");
   $("trips").classList.remove("hidden");
   $("tripname").textContent = "";
+  $("tripNote").textContent = "";
   let trips = [];
-  try { trips = await (await fetch("data/trips.json")).json(); }
-  catch (e) { $("triplist").innerHTML = "data/trips.json 없음 — backend 파이프라인을 먼저 실행하세요."; return; }
+  API_OK = false;
+  try { trips = await api("/api/trips", "GET"); API_OK = true; }
+  catch (e) {
+    try { trips = await (await fetch("data/trips.json")).json(); }
+    catch (e2) { $("triplist").innerHTML = "data/trips.json 없음 — backend 파이프라인을 먼저 실행하세요."; return; }
+  }
+  $("tripAdd").classList.toggle("hidden", !API_OK);
+  $("tripAdd").onclick = async () => {
+    const name = (prompt("새 여행 폴더 이름") || "").trim();
+    if (!name) return;
+    try { await api("/api/trips", "POST", { name }); await waitRebuild(); showHome(); }
+    catch (e) { $("tripNote").textContent = "추가 실패: " + e.message; }
+  };
   $("triplist").innerHTML = "";
+  if (!trips.length) $("triplist").innerHTML = "<small>여행 없음 — 새 폴더를 만들고 사진을 넣으세요.</small>";
   trips.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "tcard";
     const b = document.createElement("button");
     b.className = "tripcard";
-    b.innerHTML = `📁 ${t.name}<br><small>${t.total}장 · GPS ${t.gps} · ${t.route_km}km · ${t.start || "?"} ~ ${t.end || "?"}</small>`;
+    b.innerHTML = `📁 ${t.name}<br><small>${t.total ?? "?"}장 · GPS ${t.gps ?? "?"} · ${t.route_km ?? "?"}km · ${t.start || "?"} ~ ${t.end || "?"}</small>`;
     b.onclick = () => openTrip(t.id);
-    $("triplist").appendChild(b);
+    row.appendChild(b);
+    if (API_OK && t.is_dir) {
+      const rn = document.createElement("button");
+      rn.className = "ticon"; rn.title = "이름 변경"; rn.textContent = "✏️";
+      rn.onclick = async () => {
+        const nn = ((prompt("새 폴더 이름", t.name)) || "").trim();
+        if (!nn || nn === t.name) return;
+        try {
+          await api(`/api/trips/${encodeURIComponent(t.id)}`, "PATCH", { name: nn });
+          if (MANUAL[t.id]) { MANUAL[nn] = MANUAL[t.id]; delete MANUAL[t.id]; saveManual(); }
+          await waitRebuild(); showHome();
+        } catch (e) { $("tripNote").textContent = "변경 실패: " + e.message; }
+      };
+      const del = document.createElement("button");
+      del.className = "ticon danger"; del.title = "폴더 삭제"; del.textContent = "🗑️";
+      del.onclick = async () => {
+        if (!confirm(`'${t.name}' 폴더와 사진 ${t.total ?? "?"}장을 삭제할까?`)) return;
+        try {
+          await api(`/api/trips/${encodeURIComponent(t.id)}`, "DELETE");
+          if (MANUAL[t.id]) { delete MANUAL[t.id]; saveManual(); }
+          await waitRebuild(); showHome();
+        } catch (e) { $("tripNote").textContent = "삭제 실패: " + e.message; }
+      };
+      row.appendChild(rn); row.appendChild(del);
+    }
+    $("triplist").appendChild(row);
   });
 }
 
