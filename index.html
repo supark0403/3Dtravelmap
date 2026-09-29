@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <link rel="stylesheet" href="style.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -20,8 +21,9 @@
   <button data-map="terrain" class="mapbtn">⛰ 지형</button>
 </div>
 <div id="trips" class="hidden">
-  <div class="trow"><h2>여행 선택</h2><span class="spacer"></span><button id="tripRescan" class="hidden">🔄 다시 스캔</button><button id="tripAdd" class="hidden">+ 새 폴더</button></div>
+  <div class="trow"><h2>여행 선택</h2><span class="spacer"></span><button id="localOpen">📂 내 폴더 열기</button><button id="tripRescan" class="hidden">🔄 다시 스캔</button><button id="tripAdd" class="hidden">+ 새 폴더</button></div>
   <div id="tripNote"></div>
+  <input id="localPick" type="file" webkitdirectory multiple>
   <div id="triplist"></div>
 </div>
 <div id="hud" class="hidden">
@@ -66,6 +68,7 @@
   <div id="mrules"></div>
   <div class="mrow"><button id="mexport">내보내기</button><button id="mimportBtn">가져오기</button><input id="mimport" type="file" accept=".json" class="hidden"></div>
 </div>
+<script src="local.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

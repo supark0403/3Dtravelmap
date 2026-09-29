@@ -183,6 +183,16 @@ async function main() {
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 
   $("home").onclick = showHome;
+  $("localOpen").onclick = () => $("localPick").click();
+  $("localPick").onchange = async e => {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    try {
+      await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = `읽는 중 ${a}/${b}...`; });
+      showHome();
+    } catch (err) { $("tripNote").textContent = "읽기 실패: " + err.message; }
+    e.target.value = "";
+  };
   $("prev").onclick = () => nav(idx - 1);
   $("next").onclick = () => nav(idx + 1);
   $("first").onclick = () => nav(0);
@@ -309,7 +319,19 @@ async function showHome() {
     catch (e) { $("tripNote").textContent = "추가 실패: " + e.message; }
   };
   $("triplist").innerHTML = "";
-  if (!trips.length) $("triplist").innerHTML = "<small>여행 없음 — 새 폴더를 만들고 사진을 넣으세요.</small>";
+  if (!trips.length && !LOCAL.order.length) $("triplist").innerHTML = "<small>여행 없음 — 새 폴더를 만들고 사진을 넣으세요.</small>";
+  if (!API_OK && !LOCAL.order.length) $("tripNote").textContent = "📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)";
+  LOCAL.order.forEach(n => {
+    const m = LOCAL.trips[n].meta;
+    const row = document.createElement("div");
+    row.className = "tcard";
+    const b = document.createElement("button");
+    b.className = "tripcard";
+    b.innerHTML = `📂 ${n} (내 폴더)<br><small>${m.total}장 · GPS ${m.gps} · ${m.route_km}km · ${m.start || "?"} ~ ${m.end || "?"}</small>`;
+    b.onclick = () => openLocalTrip(n);
+    row.appendChild(b);
+    $("triplist").appendChild(row);
+  });
   trips.forEach(t => {
     const row = document.createElement("div");
     row.className = "tcard";
@@ -363,6 +385,18 @@ async function openTrip(id, retried) {
     return;
   }
   TL.items.forEach(d => d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0);
+  enterTrip(TL, "📁 " + TL.trip);
+}
+
+function openLocalTrip(name) {
+  enterTrip(LOCAL.trips[name], "📂 " + name + " (내 폴더)");
+}
+
+function enterTrip(tl, label) {
+  stop();
+  seenDays.clear();
+  TL = tl;
+  TL.items.forEach(d => { if (d._ts === undefined) d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0; });
   loadManual();
   // 직접지정 규칙이 있으면 미배치 항목도 후보에 포함 (앵커 체인에서 배치될 수 있음)
   const hasManual = (MANUAL[TL.trip] || []).length > 0;
@@ -370,7 +404,7 @@ async function openTrip(id, retried) {
   applyManual();
   $("trips").classList.add("hidden");
   $("hud").classList.remove("hidden");
-  $("tripname").textContent = "📁 " + TL.trip;
+  $("tripname").textContent = label;
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
   if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
   renderRules();
@@ -565,21 +599,32 @@ function go(i) {
   const sel = map.getSource("tm-sel-src");
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
-  const thumb = `data/thumbs/${d.thumb || d.id + ".jpg"}`;
+  const isHeic = /\.(heic|heif)$/i.test(d.file || "");
   const fb = `../travel/${encodeURI(d.file)}`;
-  const primary = mediaSrc(d, "..");
-  $("media").innerHTML = d.type === "video"
-    ? `<video controls poster="${thumb}"><source src="${primary}"><source src="${fb}"></video>`
-    : `<img src="${thumb}" alt="">`;
-  const img = $("media").querySelector("img");
-  if (img) img.onerror = () => { img.onerror = () => { img.onerror = null; img.src = fb; }; img.src = primary; };
+  const primary = d.u || mediaSrc(d, "..");
+  if (d.type === "photo" && isHeic && d.u) {
+    $("media").innerHTML = `<div class="heic">HEIC 미리보기 미지원<br><small>${d.file}</small><br><a href="${d.u}" download="${d.file}">원본 다운로드</a></div>`;
+  } else {
+    const thumb = d.u || `data/thumbs/${d.thumb || d.id + ".jpg"}`;
+    $("media").innerHTML = d.type === "video"
+      ? (d.u ? `<video controls src="${d.u}"></video>`
+             : `<video controls poster="${thumb}"><source src="${primary}"><source src="${fb}"></video>`)
+      : `<img src="${thumb}" alt="">`;
+    const img = $("media").querySelector("img");
+    if (img) { img.dataset.n = "0"; img.onerror = () => {
+      const n = +img.dataset.n;
+      const cands = d.u ? [] : [primary, fb];
+      if (n < cands.length) { img.dataset.n = String(n + 1); img.src = cands[n]; }
+      else img.onerror = null;
+    }; }
+  }
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
   // 카메라는 glideMover 프레임에서 아이콘에 고정 (flyTo 없음 → 딜레이 없음)
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
   for (let k = 1; k <= 3; k++) {
     const n = shown[idx + k];
-    if (n) { const im = new Image(); im.src = `data/thumbs/${n.thumb || n.id + ".jpg"}`; }
+    if (n) { const im = new Image(); im.src = n.u || `data/thumbs/${n.thumb || n.id + ".jpg"}`; }
   }
 }
 

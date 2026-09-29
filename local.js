@@ -1,0 +1,119 @@
+// 로컬 폴더 모드: 서버 없이 브라우저가 직접 읽음 (File API + exifr + blob URL).
+// 사진은 업로드되지 않고 로컬에서만 처리됨. 영상 GPS는 미지원(시간 hold로 배치).
+const LOCAL = { trips: {}, order: [] };
+const LOCAL_IMG = /\.(jpe?g|png|heic|heif)$/i;
+const LOCAL_VID = /\.(mp4|mov|m4v)$/i;
+const LOCAL_TS = /(\d{8})_(\d{6})/;
+
+function localFmtDT(dt) {
+  const p = n => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}:${p(dt.getSeconds())}`;
+}
+function localHavKm(a, b, c, d) {
+  const R = 6371, p1 = b * Math.PI / 180, p2 = d * Math.PI / 180;
+  const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(((c - a) * Math.PI / 180) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+async function parseLocalFiles(fileList, onProgress) {
+  if (typeof exifr === "undefined") throw new Error("exifr 로드 실패(네트워크 확인)");
+  const files = [...fileList].filter(f => LOCAL_IMG.test(f.name) || LOCAL_VID.test(f.name));
+  if (!files.length) throw new Error("사진/영상이 없음");
+  const groups = {};
+  for (const f of files) {
+    const parts = (f.webkitRelativePath || f.name).split("/");
+    const trip = parts.length > 2 ? parts[1] : parts[0];
+    (groups[trip] || (groups[trip] = [])).push(f);
+  }
+  LOCAL.trips = {};
+  LOCAL.order = [];
+  const names = Object.keys(groups).sort();
+  let done = 0;
+  for (const name of names) {
+    const fl = groups[name].sort((a, b) => (a.name < b.name ? -1 : 1));
+    const items = [];
+    let k = 0;
+    for (const f of fl) {
+      items.push(await parseLocalFile(f, name, k++));
+      if (++done % 25 === 0 && onProgress) onProgress(done, files.length);
+    }
+    const tl = buildLocalTimeline(name, items);
+    LOCAL.trips[name] = tl;
+    LOCAL.order.push(name);
+  }
+  if (onProgress) onProgress(files.length, files.length);
+  return LOCAL.order.map(n => ({ id: n, name: n, local: true, ...LOCAL.trips[n].meta }));
+}
+
+async function parseLocalFile(f, trip, k) {
+  const m = { id: "m" + String(k).padStart(4, "0"), trip, file: f.name,
+    type: LOCAL_VID.test(f.name) ? "video" : "photo",
+    has_gps: false, lat: null, lon: null, datetime: null, size: f.size,
+    u: URL.createObjectURL(f) };
+  try {
+    if (m.type === "photo" && typeof exifr !== "undefined") {
+      const ex = await exifr.parse(f, { tiff: true, exif: true, gps: true }).catch(() => null);
+      if (ex) {
+        const dt = ex.DateTimeOriginal || ex.CreateDate || ex.ModifyDate;
+        if (dt instanceof Date && !isNaN(dt)) m.datetime = localFmtDT(dt);
+        if (typeof ex.latitude === "number" && typeof ex.longitude === "number" &&
+            Math.abs(ex.latitude) <= 90 && Math.abs(ex.longitude) <= 180) {
+          m.lat = ex.latitude; m.lon = ex.longitude; m.has_gps = true;
+        }
+      }
+    }
+  } catch (e) { /* no gps */ }
+  if (!m.datetime) {
+    const mm = LOCAL_TS.exec(f.name);
+    if (mm) m.datetime = `${mm[1].slice(0, 4)}-${mm[1].slice(4, 6)}-${mm[1].slice(6, 8)} ${mm[2].slice(0, 2)}:${mm[2].slice(2, 4)}:${mm[2].slice(4, 6)}`;
+    else if (f.lastModified) m.datetime = localFmtDT(new Date(f.lastModified));
+  }
+  return m;
+}
+
+// build_path.py step-hold 포팅: GPS 앵커 + 시간 hold, 보간 없음
+function buildLocalTimeline(trip, items) {
+  const toTs = s => { const t = Date.parse(s ? s.replace(" ", "T") : ""); return isNaN(t) ? null : t; };
+  items.forEach(m => { m._ts = toTs(m.datetime); });
+  const dated = items.filter(m => m._ts != null).sort((a, b) => (a._ts - b._ts) || (a.id < b.id ? -1 : 1));
+  const nodate = items.filter(m => m._ts == null);
+  const anchors = dated.filter(m => m.has_gps);
+  const out = [];
+  let last = null;
+  for (const m of dated) {
+    const d = { ...m };
+    delete d._ts;
+    if (m.has_gps) {
+      last = m;
+      Object.assign(d, { d_lat: m.lat, d_lon: m.lon, method: "gps", at: m.id });
+    } else if (last) {
+      Object.assign(d, { d_lat: last.lat, d_lon: last.lon, method: "held", at: last.id });
+    } else {
+      const nx = anchors.find(a => a._ts >= m._ts);
+      if (nx) Object.assign(d, { d_lat: nx.lat, d_lon: nx.lon, method: "held_next", at: nx.id });
+      else Object.assign(d, { d_lat: null, d_lon: null, method: "unplaced" });
+    }
+    out.push(d);
+  }
+  for (const m of nodate) {
+    const d = { ...m };
+    delete d._ts;
+    Object.assign(d, { d_lat: null, d_lon: null, method: "no_datetime" });
+    out.push(d);
+  }
+  let dist = 0;
+  for (let i = 0; i + 1 < anchors.length; i++) {
+    dist += localHavKm(anchors[i].lon, anchors[i].lat, anchors[i + 1].lon, anchors[i + 1].lat);
+  }
+  const meta = {
+    total: items.length, dated: dated.length, no_datetime: nodate.length,
+    gps: anchors.length,
+    held: out.filter(d => d.method === "held").length,
+    held_next: out.filter(d => d.method === "held_next").length,
+    unplaced: out.filter(d => d.method === "unplaced" || d.method === "no_datetime").length,
+    places: 0, route_km: Math.round(dist * 100) / 100,
+    start: dated.length ? dated[0].datetime : null,
+    end: dated.length ? dated[dated.length - 1].datetime : null,
+  };
+  return { trip, meta, places: [], route: anchors.map(a => [a.lon, a.lat]), items: out };
+}
