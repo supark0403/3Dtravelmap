@@ -274,8 +274,10 @@ async function openTrip(id) {
     return;
   }
   TL.items.forEach(d => d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0);
-  shown = TL.items.filter(d => d.d_lat != null);
   loadManual();
+  // 직접지정 규칙이 있으면 미배치 항목도 후보에 포함 (앵커 체인에서 배치될 수 있음)
+  const hasManual = (MANUAL[TL.trip] || []).length > 0;
+  shown = TL.items.filter(d => d.d_lat != null || (hasManual && d._ts));
   applyManual();
   $("trips").classList.add("hidden");
   $("hud").classList.remove("hidden");
@@ -318,20 +320,46 @@ function loadManual() { if (!MANUAL[TL.trip]) MANUAL[TL.trip] = []; }
 function firstAnchorTs() { const a = shown.find(d => d.method === "gps"); return a ? a._ts : Infinity; }
 
 function applyManual() {
+  // 원복 (GPS는 절대 손대지 않음)
   shown.forEach(d => { if (d._orig) { d.d_lat = d._orig.lat; d.d_lon = d._orig.lon; d.method = d._orig.method; d.at = d._orig.at; } });
   const rules = MANUAL[TL.trip] || [];
   const fat = firstAnchorTs();
-  for (const r of rules) {
-    for (const d of shown) {
-      if (d.method === "gps") continue;
+  // 1) 사진별 직접지정 매칭
+  const match = new Map();
+  for (const d of shown) {
+    if (d.method === "gps") continue;
+    for (const r of rules) {
       const hit = r.mode === "before" ? (d._ts < fat)
         : r.mode === "current" ? (d.file === r.file)
         : (d._ts >= r.fromTs && d._ts <= r.toTs);
-      if (!hit) continue;
-      if (!d._orig) d._orig = { lat: d.d_lat, lon: d.d_lon, method: d.method, at: d.at };
-      d.d_lat = r.lat; d.d_lon = r.lon; d.method = "manual"; d.at = r.name;
+      if (hit) { match.set(d, r); break; }
     }
   }
+  // 2) 시간순 앵커 체인 재계산: GPS + 직접지정이 모두 앵커, 나머지는 직전 앵커에 hold
+  const order = [...shown].sort((a, b) => (a._ts - b._ts) || (a.id < b.id ? -1 : 1));
+  const anchorOf = (d) => {
+    if (d.method === "gps") return { lat: d.d_lat, lon: d.d_lon, label: d.id };
+    const r = match.get(d);
+    return r ? { lat: r.lat, lon: r.lon, label: r.name } : null;
+  };
+  const nextAnchor = new Array(order.length).fill(null);
+  let nxt = null;
+  for (let i = order.length - 1; i >= 0; i--) { nextAnchor[i] = nxt; const a = anchorOf(order[i]); if (a) nxt = a; }
+  const stamp = (d, lat, lon, method, at) => {
+    if (!d._orig) d._orig = { lat: d.d_lat, lon: d.d_lon, method: d.method, at: d.at };
+    d.d_lat = lat; d.d_lon = lon; d.method = method; d.at = at;
+  };
+  let cur = null;
+  order.forEach((d, i) => {
+    const a = anchorOf(d);
+    if (a && d.method === "gps") { cur = a; return; }
+    if (a) { stamp(d, a.lat, a.lon, "manual", a.label); cur = a; }
+    else if (cur) stamp(d, cur.lat, cur.lon, "held", cur.label);
+    else if (nextAnchor[i]) { const na = nextAnchor[i]; stamp(d, na.lat, na.lon, "held_next", na.label); }
+    else stamp(d, null, null, "unplaced", null);
+  });
+  // 앵커가 하나도 없어 못 놓은 항목은 제외 (null 방어)
+  shown = shown.filter(d => d.d_lat != null);
 }
 
 let MPLACE = null;
