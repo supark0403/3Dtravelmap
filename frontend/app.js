@@ -183,11 +183,12 @@ async function main() {
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 
   $("home").onclick = showHome;
-  $("prev").onclick = () => go(idx - 1);
-  $("next").onclick = () => go(idx + 1);
-  $("first").onclick = () => go(0);
+  $("prev").onclick = () => nav(idx - 1);
+  $("next").onclick = () => nav(idx + 1);
+  $("first").onclick = () => nav(0);
   $("play").onclick = toggle;
-  $("scrub").oninput = e => go(+e.target.value);
+  $("scrub").oninput = e => nav(+e.target.value);
+  $("interSkip").onclick = () => finishInterlude();
   const setSpeed = (v) => {
     speed = Math.max(0.1, Math.min(8, +v || 1));
     $("speedSlider").value = speed;
@@ -342,6 +343,8 @@ async function showHome() {
 }
 
 async function openTrip(id) {
+  stop();
+  seenDays.clear();
   $("mapstatus").textContent = "여행 로딩 중...";
   try {
     TL = await (await fetch(`data/trips/${encodeURIComponent(id)}.json`)).json();
@@ -578,10 +581,71 @@ function frameCurrent() {
 }
 
 function toggle() {
-  if (timer) { stop(); return; }
+  if (playing) { stop(); return; }
+  playing = true;
   $("play").textContent = "⏸ 정지";
-  timer = setInterval(() => { if (idx >= shown.length - 1) { stop(); return; } go(idx + 1); }, BASE_MS / speed);
+  if (isDayStart(idx) && !seenDays.has(dayKey(idx))) interlude(idx, false);
+  else startTimer();
 }
-function stop() { if (timer) { clearInterval(timer); timer = null; } const p = $("play"); if (p) p.textContent = "▶ 재생"; }
+function startTimer() {
+  if (timer) clearInterval(timer);
+  timer = setInterval(stepOnce, BASE_MS / speed);
+}
+function stepOnce() {
+  if (idx >= shown.length - 1) { stop(); return; }
+  const next = idx + 1;
+  if (isDayStart(next) && !seenDays.has(dayKey(next))) { interlude(next, true); return; }
+  go(next);
+}
+function stop() {
+  playing = false;
+  if (timer) { clearInterval(timer); timer = null; }
+  cancelInterlude();
+  const p = $("play"); if (p) p.textContent = "▶ 재생";
+}
+
+// ---- 일차 시작 인터루드: 기상 + 가방싸기 (배속 무시 고정시간, 사진 정지) ----
+let playing = false, interludeTO = null, wakeInt = null, pendingInter = null;
+const seenDays = new Set();
+const INTERLUDE_MS = 3000;
+const WAKE_EMOJIS = ["🛏️", "😪", "⏰", "🧍", "🎒", "🚶"];
+function dayKey(i) { const d = shown[i]; return d ? (d.datetime || "").slice(0, 10) : ""; }
+function isDayStart(i) { return i <= 0 || dayKey(i) !== dayKey(i - 1); }
+function dayNum(i) {
+  const s = new Set();
+  for (let k = 0; k <= i && k < shown.length; k++) s.add(dayKey(k));
+  return s.size;
+}
+function interlude(i, advance) {
+  cancelInterlude();
+  if (timer) { clearInterval(timer); timer = null; } // 사진 넘김 정지 (재생 상태 유지)
+  seenDays.add(dayKey(i));
+  pendingInter = { i, advance };
+  $("interDay").textContent = dayNum(i) + "일차 시작";
+  $("interlude").classList.remove("hidden");
+  let k = 0;
+  $("wakeEmoji").textContent = WAKE_EMOJIS[0];
+  wakeInt = setInterval(() => { k = (k + 1) % WAKE_EMOJIS.length; $("wakeEmoji").textContent = WAKE_EMOJIS[k]; }, 500);
+  interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
+}
+function finishInterlude() {
+  const p = pendingInter; pendingInter = null;
+  cancelInterlude();
+  if (!playing) return;
+  if (p && p.advance) go(p.i);
+  startTimer();
+}
+function cancelInterlude() {
+  if (interludeTO) { clearTimeout(interludeTO); interludeTO = null; }
+  if (wakeInt) { clearInterval(wakeInt); wakeInt = null; }
+  pendingInter = null;
+  const el = $("interlude"); if (el) el.classList.add("hidden");
+}
+// 수동 이동: 인터루드 취소 후 이동, 재생 중이면 타이머 복구
+function nav(i) {
+  cancelInterlude();
+  go(i);
+  if (playing && !timer) startTimer();
+}
 
 main().catch(e => { const t = $("triplist"); if (t) t.innerHTML = "초기화 실패: " + e; });

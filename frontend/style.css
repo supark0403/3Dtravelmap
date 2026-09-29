@@ -28,6 +28,13 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #panel img,#panel video{width:100%;border-radius:6px;max-height:220px;object-fit:cover}
 #panel #info{font-size:12px;margin-top:8px;line-height:1.6;word-break:break-all}
 #close{float:right;background:none;border:none;color:#fff;cursor:pointer;font-size:14px}
+#interlude{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);background:rgba(10,14,20,.94);color:#fff;border-radius:14px;padding:26px 40px;z-index:20;text-align:center}
+#interlude.hidden{display:none}
+#wakeEmoji{font-size:64px;animation:wake 1s ease-in-out infinite}
+@keyframes wake{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+#interDay{font-size:20px;font-weight:700;margin-top:8px}
+#interSub{font-size:12px;opacity:.75;margin:6px 0 10px}
+#interlude button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 12px;cursor:pointer}
 .badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px}
 .gps{background:#2e7d32}.held{background:#1565c0}.heldnext{background:#6a1b9a}.bad{background:#616161}.man{background:#33691e}
 #manual{position:fixed;top:70px;left:12px;width:320px;max-height:75%;overflow:auto;background:rgba(10,14,20,.94);color:#fff;border-radius:10px;padding:12px 14px;z-index:6}
