@@ -1,33 +1,71 @@
-let viewer, TL, shown = [], entities = [], mover = null, idx = 0, timer = null, speed = 1;
+let map, mapReady = false, TL, shown = [], idx = 0, timer = null, speed = 1;
+let moverEl, mover, baseKind = "street", baseFailed = {};
 const $ = id => document.getElementById(id);
 const BASE_MS = 1500;
 
-const MAPS = {
-  // NOTE: ArcGisMapServerImageryProvider는 메타데이터 실패 시 렌더 크래시를 내서 사용 금지.
-  // 직접 타일 URL(UrlTemplate)만 사용 — 실패해도 errorEvent로 정상 처리됨.
-  street: () => new Cesium.UrlTemplateImageryProvider({
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    credit: "© OpenStreetMap contributors", maximumLevel: 19 }),
-  sat: () => new Cesium.UrlTemplateImageryProvider({
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    credit: "Esri World Imagery", maximumLevel: 19 }),
-  carto: () => new Cesium.UrlTemplateImageryProvider({
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-    credit: "Esri World Topo", maximumLevel: 19 }),
-};
-const MAP_ORDER = ["street", "sat", "carto"];
-const MAP_LABEL = { street: "일반(OSM)", sat: "위성(Esri)", carto: "지형(Esri)" };
-let mapKind = "street", mapFailed = {}, errCount = 0;
+const LIBERTY = "https://tiles.openfreemap.org/styles/liberty";
+const OFM_VECTOR = "https://tiles.openfreemap.org/planet";
+const DEM_TILES = ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"];
+const ESRI_SAT = ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
+const MAP_LABEL = { street: "일반+3D건물", sat: "위성+3D건물", terrain: "지형(고도×2)" };
+const MAP_ORDER = ["street", "sat", "terrain"];
 
-function gridFallback() { return new Cesium.GridImageryProvider(); }
+const BUILD3D = (src) => ({
+  id: "tm-build3d", type: "fill-extrusion", source: src, "source-layer": "building",
+  minzoom: 14, filter: ["!=", ["get", "hide_3d"], true],
+  paint: {
+    "fill-extrusion-color": ["interpolate", ["linear"], ["get", "render_height"], 0, "#cfc8bd", 200, "#9fb3c8", 400, "#c8d8e8"],
+    "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 14, 0, 15.5, ["get", "render_height"]],
+    "fill-extrusion-base": ["case", [">=", ["get", "zoom"], 15.5], ["get", "render_min_height"], 0],
+    "fill-extrusion-opacity": 0.85,
+  },
+});
 
-function emojiImage(emoji) {
-  const c = document.createElement("canvas"); c.width = c.height = 72;
-  const g = c.getContext("2d"); g.font = "56px serif"; g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillText(emoji, 36, 40);
-  return c.toDataURL();
+function satStyle() {
+  return { version: 8,
+    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    sources: {
+      esri: { type: "raster", tiles: ESRI_SAT, tileSize: 256, maxzoom: 19, attribution: "Esri World Imagery" },
+      ofm: { type: "vector", url: OFM_VECTOR },
+    },
+    layers: [{ id: "esri", type: "raster", source: "esri" }, BUILD3D("ofm")],
+  };
 }
-const EMOJI = { walk: emojiImage("🚶"), transit: emojiImage("🚇"), plane: emojiImage("✈️"), ship: emojiImage("🚢") };
+function styleFor(kind) { return kind === "sat" ? satStyle() : LIBERTY; }
+
+// style (re)loaded: terrain + hillshade + trip layers
+function setup3D() {
+  try {
+    if (!map.getSource("dem")) {
+      map.addSource("dem", { type: "raster-dem", tiles: DEM_TILES, tileSize: 256, maxzoom: 15, encoding: "terrarium" });
+    }
+    map.setTerrain({ source: "dem", exaggeration: baseKind === "terrain" ? 2 : 1 });
+    if (baseKind === "terrain" && !map.getLayer("tm-hill")) {
+      map.addLayer({ id: "tm-hill", type: "hillshade", source: "dem",
+        paint: { "hillshade-shadow-color": "#473B24" } });
+    }
+  } catch (e) { /* terrain optional */ }
+  if (TL && shown.length) renderTripLayers();
+}
+
+function setBase(kind) {
+  baseKind = kind;
+  document.querySelectorAll(".mapbtn").forEach(b => b.classList.toggle("on", b.dataset.map === kind));
+  try {
+    map.setStyle(styleFor(kind));
+    $("mapstatus").textContent = "지도: " + MAP_LABEL[kind];
+  } catch (e) { onBaseError(kind); }
+}
+function onBaseError(kind) {
+  if (baseFailed[kind]) return;
+  baseFailed[kind] = true;
+  const next = MAP_ORDER.find(k => !baseFailed[k]);
+  if (next) { $("mapstatus").textContent = `지도 실패 → ${MAP_LABEL[next]}로 전환`; setBase(next); }
+  else $("mapstatus").textContent = "지도 로드 실패 (네트워크 확인 필요)";
+}
+
+function emojiImage(emoji) { return emoji; } // mover uses text marker
+const EMOJI = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢" };
 
 // segment mode by speed between consecutive displayed items (ship = manual override only)
 function segMode(a, b) {
@@ -45,54 +83,58 @@ function segMode(a, b) {
   return ["walk", "🚶 도보/체류"];
 }
 
-function setImagery(kind) {
-  mapKind = kind;
-  document.querySelectorAll(".mapbtn").forEach(b => b.classList.toggle("on", b.dataset.map === kind));
-  let p = null;
-  try { p = MAPS[kind](); } catch (e) { p = null; }
-  if (!p) { onMapError(kind); return; }
-  errCount = 0;
-  try {
-    p.errorEvent.addEventListener(() => { if (++errCount >= 5) onMapError(kind); });
-  } catch (e) { /* provider without errorEvent */ }
-  const layers = viewer.imageryLayers;
-  layers.removeAll();
-  layers.addImageryProvider(p);
-  $("mapstatus").textContent = "지도: " + MAP_LABEL[kind];
+function dotColor(d) {
+  if (d.type === "video") return "#e040fb";
+  if (d.method === "gps") return "#ff9800";
+  if (d.method === "manual") return "#64dd17";
+  return d.method === "held_next" ? "#ab47bc" : "#29b6f6";
 }
-function onMapError(kind) {
-  if (mapFailed[kind]) return;
-  mapFailed[kind] = true;
-  const next = MAP_ORDER.find(k => !mapFailed[k]);
-  if (next) {
-    $("mapstatus").textContent = `지도(${MAP_LABEL[kind]}) 실패 → ${MAP_LABEL[next]}로 전환`;
-    setImagery(next);
-  } else {
-    viewer.imageryLayers.removeAll();
-    viewer.imageryLayers.addImageryProvider(gridFallback());
-    $("mapstatus").textContent = "온라인 지도 실패 → 오프라인 격자로 표시 (네트워크 확인 필요)";
-  }
+
+function renderTripLayers() {
+  if (!mapReady || !map.isStyleLoaded()) return;
+  for (const l of ["tm-route", "tm-photos", "tm-sel"]) if (map.getLayer(l)) map.removeLayer(l);
+  for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src"]) if (map.getSource(s)) map.removeSource(s);
+  const pts = routePoints();
+  map.addSource("tm-route-src", { type: "geojson",
+    data: { type: "Feature", geometry: { type: "LineString", coordinates: pts.length > 1 ? pts : [[0, 0], [0, 0]] } } });
+  map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
+    paint: { "line-color": "#ffd54f", "line-width": 3 } });
+  map.addSource("tm-photos-src", { type: "geojson",
+    data: { type: "FeatureCollection", features: shown.map((d, i) => ({
+      type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] },
+      properties: { i, method: d.method, color: dotColor(d),
+        size: (d.method === "gps" || d.method === "manual" || d.type === "video") ? 7 : 5 } })) } });
+  map.addLayer({ id: "tm-photos", type: "circle", source: "tm-photos-src",
+    paint: { "circle-radius": ["get", "size"], "circle-color": ["get", "color"],
+      "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
+  map.addSource("tm-sel-src", { type: "geojson",
+    data: { type: "Feature", geometry: { type: "Point", coordinates: [0, 0] } } });
+  map.addLayer({ id: "tm-sel", type: "circle", source: "tm-sel-src",
+    paint: { "circle-radius": 13, "circle-color": "rgba(255,255,255,0.35)",
+      "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
+  applyFilter();
 }
 
 async function main() {
-  let bootProvider = null;
-  for (const k of MAP_ORDER) {
-    try { bootProvider = MAPS[k](); mapKind = k; break; } catch (e) { /* next */ }
-  }
-  viewer = new Cesium.Viewer("cesium", {
-    imageryProvider: bootProvider || gridFallback(),
-    terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-    geocoder: false, baseLayerPicker: false, sceneModePicker: true,
-    timeline: false, animation: false, infoBox: false, selectionIndicator: false,
-  });
-  document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => { mapFailed = {}; setImagery(b.dataset.map); });
-  setImagery(mapKind);
+  map = new maplibregl.Map({ container: "map", style: styleFor("street"),
+    center: [127.5, 36.5], zoom: 2, pitch: 0, attributionControl: true });
+  if (map.setProjection) { try { map.setProjection({ type: "globe" }); } catch (e) {} }
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.on("load", () => { mapReady = true; setup3D(); });
+  map.on("style.load", () => setup3D());
+  map.on("error", () => { $("mapstatus").textContent = "지도 타일 오류 — 네트워크 확인"; });
+  map.on("click", "tm-photos", e => { const f = e.features && e.features[0]; if (f) go(f.properties.i); });
+  map.on("mouseenter", "tm-photos", () => map.getCanvas().style.cursor = "pointer");
+  map.on("mouseleave", "tm-photos", () => map.getCanvas().style.cursor = "");
 
-  const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-  h.setInputAction(c => {
-    const p = viewer.scene.pick(c.position);
-    if (p && p.id && p.id._i !== undefined) go(p.id._i);
-  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+  moverEl = document.createElement("div");
+  moverEl.className = "mover";
+  moverEl.textContent = EMOJI.walk;
+  moverEl.onclick = () => go(idx);
+  mover = new maplibregl.Marker({ element: moverEl }).setLngLat([0, 0]).addTo(map);
+
+  document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => { baseFailed = {}; setBase(b.dataset.map); });
+  $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 
   $("home").onclick = showHome;
   $("prev").onclick = () => go(idx - 1);
@@ -106,10 +148,7 @@ async function main() {
     if (timer) { stop(); toggle(); }
   });
   $("showHeld").onchange = applyFilter;
-  $("follow").onchange = () => {
-    if ($("follow").checked) frameCurrent();
-    else viewer.camera.cancelFlight();
-  };
+  $("follow").onchange = () => { if ($("follow").checked) frameCurrent(); };
   $("close").onclick = () => $("panel").classList.add("hidden");
   $("manualBtn").onclick = () => $("manual").classList.toggle("hidden");
   $("mclose").onclick = () => $("manual").classList.add("hidden");
@@ -164,14 +203,13 @@ async function waitRebuild() {
 
 async function showHome() {
   stop();
-  if (typeof viewer !== "undefined" && viewer) viewer.camera.cancelFlight();
-  $("home").onclick = showHome;
   $("hud").classList.add("hidden");
   $("panel").classList.add("hidden");
   $("manual").classList.add("hidden");
   $("trips").classList.remove("hidden");
   $("tripname").textContent = "";
   $("tripNote").textContent = "";
+  try { map.jumpTo({ center: [130, 30], zoom: 2.2, pitch: 0 }); } catch (e) {}
   let trips = [];
   API_OK = false;
   try { trips = await api("/api/trips", "GET"); API_OK = true; }
@@ -239,6 +277,7 @@ async function openTrip(id) {
   $("trips").classList.add("hidden");
   $("hud").classList.remove("hidden");
   $("tripname").textContent = "📁 " + TL.trip;
+  $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
   if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
   renderRules();
   renderAll(0);
@@ -257,36 +296,12 @@ function routePoints() {
   return pts;
 }
 
-function pointColor(d) {
-  if (d.type === "video") return Cesium.Color.MAGENTA;
-  if (d.method === "gps") return Cesium.Color.ORANGE;
-  if (d.method === "manual") return Cesium.Color.LIME;
-  return d.method === "held_next" ? Cesium.Color.PURPLE : Cesium.Color.DEEPSKYBLUE;
-}
-
 function renderAll(startIdx) {
-  viewer.entities.removeAll();
-  entities = [];
-  const pts = routePoints();
-  if (pts.length > 1)
-    viewer.entities.add({ polyline: { positions: Cesium.Cartesian3.fromDegreesArray(pts.flat()), width: 3, material: Cesium.Color.GOLD } });
-  shown.forEach((d, i) => {
-    const big = d.method === "gps" || d.method === "manual";
-    entities.push(viewer.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, big ? 60 : 30),
-      point: { pixelSize: big ? 10 : 6, color: pointColor(d),
-        outlineColor: Cesium.Color.WHITE, outlineWidth: 1 },
-      _i: i,
-    }));
-  });
-  mover = viewer.entities.add({ position: Cesium.Cartesian3.fromDegrees(shown[0].d_lon, shown[0].d_lat, 120),
-    billboard: { image: EMOJI.walk, scale: 0.9, verticalOrigin: Cesium.VerticalOrigin.BOTTOM }, _i: 0 });
-
+  renderTripLayers();
   const m = TL.meta;
   const man = shown.filter(d => d.method === "manual").length;
   $("stats").textContent = `전체 ${m.total} · GPS ${m.gps} · 같은장소 ${m.held + m.held_next} · 직접 ${man} · ${m.start} ~ ${m.end}`;
   $("scrub").max = shown.length - 1;
-  applyFilter();
   go(Math.max(0, Math.min(startIdx, shown.length - 1)));
 }
 
@@ -368,9 +383,9 @@ function renderRules() {
 }
 
 function applyFilter() {
+  if (!mapReady || !map.getLayer("tm-photos")) return;
   const show = $("showHeld").checked;
-  entities.forEach((e, i) => { e.show = show || shown[i].method === "gps"; });
-  if (mover) mover.show = true;
+  map.setFilter("tm-photos", show ? null : ["==", ["get", "method"], "gps"]);
 }
 
 function mediaSrc(d, base) {
@@ -382,14 +397,21 @@ function badge(d) {
   return `<span class="badge ${c}">${t}</span>` + (d.type === "video" ? ' <span class="badge held">VIDEO</span>' : "");
 }
 
+function hopKm(a, b) {
+  if (!a || !b) return 0;
+  return Math.hypot((b.d_lon - a.d_lon) * 91, (b.d_lat - a.d_lat) * 111);
+}
+function zoomForHop(km) { return Math.max(8.5, Math.min(16, 16 - Math.log2(km + 1) * 1.6)); }
+
 function go(i) {
   idx = Math.max(0, Math.min(shown.length - 1, i));
   $("scrub").value = idx;
   const d = shown[idx];
   const [mode, label] = segMode(shown[idx - 1], d);
-  mover.position = Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, 120);
-  mover.billboard.image = EMOJI[mode];
-  mover._i = idx;
+  moverEl.textContent = EMOJI[mode];
+  mover.setLngLat([d.d_lon, d.d_lat]);
+  const sel = map.getSource("tm-sel-src");
+  if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
   const thumb = `data/thumbs/${d.thumb || d.id + ".jpg"}`;
   const fb = `../sample/${encodeURI(d.file)}`;
@@ -401,20 +423,12 @@ function go(i) {
   if (img) img.onerror = () => { img.onerror = () => { img.onerror = null; img.src = fb; }; img.src = primary; };
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
-  entities.forEach((e, k) => { const mm = shown[k].method; e.point.pixelSize = k === idx ? 16 : ((mm === "gps" || mm === "manual") ? 10 : 6); });
   if ($("follow").checked) {
     // 배속 적응 비행: 간격의 90% 안에 도착 → 끊김 없이 연속 활공
-    const p = shown[idx - 1];
-    let h = 1600;
-    if (p) {
-      const km = Math.hypot((d.d_lon - p.d_lon) * 91, (d.d_lat - p.d_lat) * 111);
-      h = Math.min(8000, Math.max(350, km * 1000 * 1.2)); // 가까우면 낮게, 멀면 높게
-    }
-    viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, h),
-      orientation: { heading: 0, pitch: -0.55, roll: 0 },
-      duration: Math.max(0.25, Math.min(1.6, (BASE_MS / speed) / 1000 * 0.9)),
-      easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT });
-  } else viewer.camera.cancelFlight();
+    const km = hopKm(shown[idx - 1], d);
+    map.flyTo({ center: [d.d_lon, d.d_lat], zoom: zoomForHop(km), pitch: 62,
+      duration: Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9)), essential: true });
+  }
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
   for (let k = 1; k <= 3; k++) {
     const n = shown[idx + k];
@@ -422,13 +436,11 @@ function go(i) {
   }
 }
 
-// 현재 위치로 스냅 (비행 없이 즉시)
+// 현재 위치로 스냅 (애니메이션 없이 즉시)
 function frameCurrent() {
   const d = shown[idx];
   if (!d) return;
-  viewer.camera.cancelFlight();
-  viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(d.d_lon, d.d_lat, 1600),
-    orientation: { heading: 0, pitch: -0.55, roll: 0 } });
+  try { map.jumpTo({ center: [d.d_lon, d.d_lat], zoom: 15, pitch: 60 }); } catch (e) {}
 }
 
 function toggle() {
@@ -436,6 +448,6 @@ function toggle() {
   $("play").textContent = "⏸ 정지";
   timer = setInterval(() => { if (idx >= shown.length - 1) { stop(); return; } go(idx + 1); }, BASE_MS / speed);
 }
-function stop() { if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "▶ 재생"; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } const p = $("play"); if (p) p.textContent = "▶ 재생"; }
 
-main().catch(e => { $("triplist").innerHTML = "초기화 실패: " + e; });
+main().catch(e => { const t = $("triplist"); if (t) t.innerHTML = "초기화 실패: " + e; });
