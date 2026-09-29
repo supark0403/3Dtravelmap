@@ -95,10 +95,12 @@ function renderTripLayers() {
   for (const l of ["tm-route", "tm-photos", "tm-sel"]) if (map.getLayer(l)) map.removeLayer(l);
   for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src"]) if (map.getSource(s)) map.removeSource(s);
   const pts = routePoints();
-  map.addSource("tm-route-src", { type: "geojson",
-    data: { type: "Feature", geometry: { type: "LineString", coordinates: pts.length > 1 ? pts : [[0, 0], [0, 0]] } } });
-  map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
-    paint: { "line-color": "#ffd54f", "line-width": 3 } });
+  if (pts.length > 1) {
+    map.addSource("tm-route-src", { type: "geojson",
+      data: { type: "Feature", geometry: { type: "LineString", coordinates: pts } } });
+    map.addLayer({ id: "tm-route", type: "line", source: "tm-route-src",
+      paint: { "line-color": "#ffd54f", "line-width": 3 } });
+  }
   map.addSource("tm-photos-src", { type: "geojson",
     data: { type: "FeatureCollection", features: shown.map((d, i) => ({
       type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] },
@@ -281,6 +283,7 @@ async function openTrip(id) {
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
   if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
   renderRules();
+  snapMover = true; // 새 여행: 아이콘 점프 방지용 스냅
   renderAll(0);
   frameCurrent();
 }
@@ -332,6 +335,27 @@ function applyManual() {
 }
 
 let MPLACE = null;
+let glideRAF = null, snapMover = true;
+
+// 아이콘을 선 따라 미끄러지듯 이동 (구간 시간에 맞춤)
+function glideMover(to, durMs) {
+  if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; }
+  let from = to;
+  try { const c = mover.getLngLat(); if (c) from = [c.lng, c.lat]; } catch (e) {}
+  if (snapMover || durMs <= 0 || (from[0] === to[0] && from[1] === to[1])) {
+    mover.setLngLat(to);
+    snapMover = false;
+    return;
+  }
+  const t0 = performance.now();
+  const step = (t) => {
+    const f = Math.min(1, (t - t0) / durMs);
+    const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+    mover.setLngLat([from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e]);
+    glideRAF = f < 1 ? requestAnimationFrame(step) : null;
+  };
+  glideRAF = requestAnimationFrame(step);
+}
 async function mSearch() {
   const q = $("mq").value.trim();
   if (!q) return;
@@ -420,11 +444,14 @@ function zoomForHop(km) { return Math.max(8.5, Math.min(16, 16 - Math.log2(km + 
 
 function go(i) {
   idx = Math.max(0, Math.min(shown.length - 1, i));
+  // 레이어가 스타일 로드 타이밍에 밀려 없으면 복구
+  if (TL && mapReady && map.isStyleLoaded() && !map.getLayer("tm-photos")) renderTripLayers();
   $("scrub").value = idx;
   const d = shown[idx];
   const [mode, label] = segMode(shown[idx - 1], d);
   moverEl.textContent = EMOJI[mode];
-  mover.setLngLat([d.d_lon, d.d_lat]);
+  const dur = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9));
+  glideMover([d.d_lon, d.d_lat], dur);
   const sel = map.getSource("tm-sel-src");
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
@@ -439,10 +466,10 @@ function go(i) {
   $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
   $("panel").classList.remove("hidden");
   if ($("follow").checked) {
-    // 배속 적응 비행: 간격의 90% 안에 도착 → 끊김 없이 연속 활공
+    // 배속 적응 비행: 아이콘 활공과 같은 시간 → 끊김 없이 연속 이동
     const km = hopKm(shown[idx - 1], d);
     map.flyTo({ center: [d.d_lon, d.d_lat], zoom: zoomForHop(km), pitch: 62,
-      duration: Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9)), essential: true });
+      duration: dur, essential: true });
   }
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
   for (let k = 1; k <= 3; k++) {
