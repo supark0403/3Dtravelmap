@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Travel Map</title>
+<link rel="stylesheet" href="https://unpkg.com/cesium@1.121.0/Build/Cesium/Widgets/widgets.css">
+<link rel="stylesheet" href="style.css">
+<script>window.CESIUM_BASE_URL = "https://unpkg.com/cesium@1.121.0/Build/Cesium/";</script>
+<script src="https://unpkg.com/cesium@1.121.0/Build/Cesium/Cesium.js"></script>
+</head>
+<body>
+<div id="cesium"></div>
+<div id="hud">
+  <div id="title">3D Travel Map <span id="stats"></span></div>
+  <div id="controls">
+    <button id="prev">◀</button>
+    <button id="play">▶ 재생</button>
+    <button id="next">▶</button>
+    <input id="scrub" type="range" min="0" max="0" value="0" step="1">
+    <select id="speed"><option value="800">빠름</option><option value="2000" selected>보통</option><option value="4000">느림</option></select>
+    <label><input type="checkbox" id="showInterp" checked> 추정 표시</label>
+    <label><input type="checkbox" id="follow" checked> 따라가기</label>
+  </div>
+  <div id="cur"></div>
+</div>
+<div id="panel" class="hidden">
+  <button id="close">✕</button>
+  <div id="media"></div>
+  <div id="info"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

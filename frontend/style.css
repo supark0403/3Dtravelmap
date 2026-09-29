@@ -1,0 +1,14 @@
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Gothic",sans-serif}
+#cesium{position:fixed;inset:0}
+#hud{position:fixed;left:12px;right:12px;bottom:12px;background:rgba(10,14,20,.85);color:#fff;border-radius:10px;padding:10px 14px;backdrop-filter:blur(4px)}
+#title{font-weight:700;margin-bottom:6px}#stats{font-weight:400;font-size:12px;opacity:.8;margin-left:8px}
+#controls{display:flex;gap:8px;align-items:center}
+#controls button,#controls select{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
+#scrub{flex:1}#cur{font-size:13px;margin-top:6px;opacity:.9}
+#panel{position:fixed;top:12px;right:12px;width:300px;background:rgba(10,14,20,.92);color:#fff;border-radius:10px;padding:12px}
+#panel.hidden{display:none}
+#panel img,#panel video{width:100%;border-radius:6px;max-height:220px;object-fit:cover}
+#panel #info{font-size:12px;margin-top:8px;line-height:1.6;word-break:break-all}
+#close{float:right;background:none;border:none;color:#fff;cursor:pointer;font-size:14px}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:4px}
+.gps{background:#2e7d32}.interp{background:#1565c0}.prevnext{background:#6a1b9a}.bad{background:#616161}
