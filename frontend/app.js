@@ -8,7 +8,9 @@ const MAPS = {
   osm: () => new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }),
 };
 const MAP_LABEL = { street: "일반지도(Esri)", sat: "위성(Esri)", osm: "OSM" };
-let mapKind = "street", mapFailed = {};
+let mapKind = "street", mapFailed = {}, errCount = 0;
+
+function gridFallback() { return new Cesium.GridImageryProvider(); }
 
 function emojiImage(emoji) {
   const c = document.createElement("canvas"); c.width = c.height = 72;
@@ -35,34 +37,45 @@ function segMode(a, b) {
 function setImagery(kind) {
   mapKind = kind;
   document.querySelectorAll(".mapbtn").forEach(b => b.classList.toggle("on", b.dataset.map === kind));
+  let p = null;
+  try { p = MAPS[kind](); } catch (e) { p = null; }
+  if (!p) { onMapError(kind); return; }
+  errCount = 0;
+  try {
+    p.errorEvent.addEventListener(() => { if (++errCount >= 5) onMapError(kind); });
+  } catch (e) { /* provider without errorEvent */ }
   const layers = viewer.imageryLayers;
   layers.removeAll();
-  try {
-    const p = MAPS[kind]();
-    p.errorEvent.addEventListener(() => onMapError(kind));
-    layers.addImageryProvider(p);
-    $("mapstatus").textContent = "지도: " + MAP_LABEL[kind];
-  } catch (e) { onMapError(kind); }
+  layers.addImageryProvider(p);
+  $("mapstatus").textContent = "지도: " + MAP_LABEL[kind];
 }
 function onMapError(kind) {
   if (mapFailed[kind]) return;
   mapFailed[kind] = true;
   const next = ["street", "sat", "osm"].find(k => !mapFailed[k]);
-  $("mapstatus").textContent = `지도(${MAP_LABEL[kind]}) 실패 → ${next ? MAP_LABEL[next] + "로 전환" : "사용 가능한 지도 없음"}`;
-  if (next) setImagery(next);
+  if (next) {
+    $("mapstatus").textContent = `지도(${MAP_LABEL[kind]}) 실패 → ${MAP_LABEL[next]}로 전환`;
+    setImagery(next);
+  } else {
+    viewer.imageryLayers.removeAll();
+    viewer.imageryLayers.addImageryProvider(gridFallback());
+    $("mapstatus").textContent = "온라인 지도 실패 → 오프라인 격자로 표시 (네트워크 확인 필요)";
+  }
 }
 
 async function main() {
+  let bootProvider = null;
+  for (const k of ["street", "sat", "osm"]) {
+    try { bootProvider = MAPS[k](); mapKind = k; break; } catch (e) { /* next */ }
+  }
   viewer = new Cesium.Viewer("cesium", {
+    imageryProvider: bootProvider || gridFallback(),
     terrainProvider: new Cesium.EllipsoidTerrainProvider(),
     geocoder: false, baseLayerPicker: false, sceneModePicker: true,
     timeline: false, animation: false, infoBox: false, selectionIndicator: false,
   });
   document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => { mapFailed = {}; setImagery(b.dataset.map); });
-  setImagery("street");
-  setTimeout(() => { // still no tiles? auto-fallback
-    if (viewer.scene.globe.tilesLoaded === false) onMapError(mapKind);
-  }, 12000);
+  setImagery(mapKind);
 
   const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   h.setInputAction(c => {
