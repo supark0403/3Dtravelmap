@@ -19,13 +19,19 @@
 pip install -r backend/requirements.txt
 # ffmpeg/ffprobe 필요 (영상 지원용)
 
+python backend/server.py
+# http://localhost:8000 — 앱 + 사진/영상 서빙 + 폴더 관리 API
+```
+서버가 리빌드(스캔→썸네일→경로)를 대신 수행. 썸네일 파일명은 내용 기반 해시라 폴더 이름 변경·재스캔에도 유지됨.
+수동 파이프라인도 가능:
+```bash
 python backend/extract.py sample frontend/data/items.json
 python backend/build_path.py frontend/data/items.json frontend/data/trips
 python backend/thumbs.py frontend/data/items.json sample frontend/data/thumbs
-
-cd frontend && python -m http.server 8000
-# http://localhost:8000
 ```
+
+## 프론트엔드 기능
+- 홈에서 여행 폴더 추가(+ 새 폴더)/이름 변경(✏️)/삭제(🗑️). 직접지정 위치는 이름 변경 시 자동 이전
 
 ## 프론트엔드 기능
 - 실제 지도 3단 전환 (일반/위성/OSM, 실패 시 자동 폴백)

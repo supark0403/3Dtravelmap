@@ -6,8 +6,12 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from PIL import Image
 from PIL.ExifTags import IFD
+
+from thumbkey import stable_thumb
 
 IMG_EXTS = {".jpg", ".jpeg", ".png"}
 VID_EXTS = {".mp4", ".mov", ".m4v"}
@@ -147,15 +151,18 @@ def scan_one(folder, trip, start_idx):
             continue
         meta = extract_video(full) if ext in VID_EXTS else extract_image(full)
         fallback_from_filename(full, meta)
-        meta["id"] = f"m{start_idx:04d}"
-        meta["trip"] = trip
-        meta["thumb"] = f"{trip}_{meta['id']}.jpg"
-        meta["file"] = name.replace("\\", "/")
-        meta["relpath"] = f"{trip}/{meta['file']}" if trip != os.path.basename(folder) else meta["file"]
         try:
-            meta["size"] = os.path.getsize(full)
+            st = os.stat(full)
+            meta["size"] = st.st_size
+            meta["mtime"] = int(st.st_mtime)
         except OSError:
             meta["size"] = None
+            meta["mtime"] = None
+        meta["id"] = f"m{start_idx:04d}"
+        meta["trip"] = trip
+        meta["thumb"] = stable_thumb(name, meta["size"], meta["mtime"])
+        meta["file"] = name.replace("\\", "/")
+        meta["relpath"] = f"{trip}/{meta['file']}" if trip != os.path.basename(folder) else meta["file"]
         items.append(meta)
         start_idx += 1
     return items, start_idx

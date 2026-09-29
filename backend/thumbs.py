@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from PIL import Image, ImageOps
 
 SIZE = (480, 480)
