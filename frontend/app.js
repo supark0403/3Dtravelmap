@@ -45,13 +45,21 @@ function setup3D() {
       map.addLayer({ id: "tm-hill", type: "hillshade", source: "dem",
         paint: { "hillshade-shadow-color": "#473B24" } });
     }
+    applyBuildings();
   } catch (e) { /* terrain optional */ }
   if (TL && shown.length) renderTripLayers();
 }
 
+let buildingsOn = true;
+function applyBuildings() {
+  for (const id of ["building-3d", "tm-build3d"]) {
+    try { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", buildingsOn ? "visible" : "none"); } catch (e) {}
+  }
+  document.querySelectorAll('[data-map="bld"]').forEach(b => b.classList.toggle("on", buildingsOn));
+}
 function setBase(kind) {
   baseKind = kind;
-  document.querySelectorAll(".mapbtn").forEach(b => b.classList.toggle("on", b.dataset.map === kind));
+  document.querySelectorAll(".mapbtn").forEach(b => { if (b.dataset.map !== "bld") b.classList.toggle("on", b.dataset.map === kind); });
   try {
     map.setStyle(styleFor(kind));
     $("mapstatus").textContent = "지도: " + MAP_LABEL[kind];
@@ -153,12 +161,16 @@ function renderTripLayers() {
   map.addLayer({ id: "tm-mover", type: "symbol", source: "tm-mover-src",
     layout: { "text-field": ["get", "emo"], "text-size": 34,
       "text-allow-overlap": true, "text-ignore-placement": true, "text-offset": [0, -0.5] } });
-  // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨
+  // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨 (동일 지점 겹치면 오른쪽으로 하나씩 밀어냄)
+  const seenPt = {};
   map.addSource("tm-days-src", { type: "geojson",
     data: { type: "FeatureCollection", features: groups.map((g, n) => {
       const first = g[0];
+      const key = first.d.d_lon.toFixed(6) + "," + first.d.d_lat.toFixed(6);
+      const k = seenPt[key] || 0;
+      seenPt[key] = k + 1;
       return { type: "Feature", geometry: { type: "Point", coordinates: [first.d.d_lon, first.d.d_lat] },
-        properties: { i: first.i, label: (n + 1) + "일차" } };
+        properties: { i: first.i, label: " ".repeat(k * 5) + (n + 1) + "일차" } };
     }) } });
   map.addLayer({ id: "tm-days", type: "symbol", source: "tm-days-src",
     layout: { "text-field": ["get", "label"], "text-size": 14, "text-offset": [0, -1.6],
@@ -189,7 +201,10 @@ async function main() {
   moverEmo = EMOJI.walk;
   moverPos = [0, 0];
 
-  document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => { baseFailed = {}; setBase(b.dataset.map); });
+  document.querySelectorAll(".mapbtn").forEach(b => b.onclick = () => {
+    if (b.dataset.map === "bld") { buildingsOn = !buildingsOn; applyBuildings(); return; }
+    baseFailed = {}; setBase(b.dataset.map);
+  });
   $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
 
   $("home").onclick = showHome;
