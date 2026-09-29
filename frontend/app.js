@@ -298,6 +298,11 @@ async function showHome() {
     $("tripNote").textContent = "폴더 추가·이름변경·삭제 버튼은 python backend/server.py 로 실행해야 보입니다.";
   }
   $("tripAdd").classList.toggle("hidden", !API_OK);
+  $("tripRescan").classList.toggle("hidden", !API_OK);
+  $("tripRescan").onclick = async () => {
+    try { $("tripNote").textContent = "스캔 중..."; await api("/api/rebuild", "POST"); await waitRebuild(); showHome(); }
+    catch (e) { $("tripNote").textContent = "스캔 실패: " + e.message; }
+  };
   $("tripAdd").onclick = async () => {
     const name = (prompt("새 여행 폴더 이름") || "").trim();
     if (!name) return;
@@ -311,7 +316,7 @@ async function showHome() {
     row.className = "tcard";
     const b = document.createElement("button");
     b.className = "tripcard";
-    b.innerHTML = `📁 ${t.name}<br><small>${t.total ?? "?"}장 · GPS ${t.gps ?? "?"} · ${t.route_km ?? "?"}km · ${t.start || "?"} ~ ${t.end || "?"}</small>`;
+    b.innerHTML = `📁 ${t.name}<br><small>${t.total ?? "?"}장 · GPS ${t.gps ?? "?"} · ${t.route_km ?? "?"}km · ${t.start || "?"} ~ ${t.end || "?"}${t.pending ? " · 스캔 필요" : ""}</small>`;
     b.onclick = () => openTrip(t.id);
     row.appendChild(b);
     if (API_OK && t.is_dir) {
@@ -342,13 +347,19 @@ async function showHome() {
   });
 }
 
-async function openTrip(id) {
+async function openTrip(id, retried) {
   stop();
   seenDays.clear();
   $("mapstatus").textContent = "여행 로딩 중...";
   try {
     TL = await (await fetch(`data/trips/${encodeURIComponent(id)}.json`)).json();
   } catch (e) {
+    // 미스캔 폴더: 스캔 후 1회 재시도
+    if (API_OK && !retried) {
+      $("mapstatus").textContent = "스캔 후 다시 여는 중...";
+      try { await api("/api/rebuild", "POST"); await waitRebuild(); return openTrip(id, true); }
+      catch (e2) {}
+    }
     $("mapstatus").textContent = "여행 로드 실패: " + e;
     return;
   }
