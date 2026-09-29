@@ -34,6 +34,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #manual input[type=text],#manual input:not([type]),#manual input#mq{flex:1;background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 8px;min-width:0}
 #manual input[type=datetime-local]{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:3px 6px;width:130px;font-size:11px}
 #manual button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
+#mscope label{word-break:break-all}#mcurN{font-size:11px;opacity:.8}
 #mresults{display:flex;flex-direction:column;gap:6px;margin:6px 0}
 #mresults .tripcard{font-size:12px}#mplace{font-size:13px;margin:6px 0}#mrules{font-size:12px}
 .mrule{display:flex;gap:6px;align-items:center;background:#1d2733;border-radius:6px;padding:4px 8px;margin:4px 0}

@@ -209,13 +209,14 @@ async function showHome() {
   $("trips").classList.remove("hidden");
   $("tripname").textContent = "";
   $("tripNote").textContent = "";
-  try { map.jumpTo({ center: [130, 30], zoom: 2.2, pitch: 0 }); } catch (e) {}
+  try { map.jumpTo({ center: [127.8, 36.3], zoom: 6.2, pitch: 0 }); } catch (e) {}
   let trips = [];
   API_OK = false;
   try { trips = await api("/api/trips", "GET"); API_OK = true; }
   catch (e) {
     try { trips = await (await fetch("data/trips.json")).json(); }
     catch (e2) { $("triplist").innerHTML = "data/trips.json 없음 — backend 파이프라인을 먼저 실행하세요."; return; }
+    $("tripNote").textContent = "폴더 추가·이름변경·삭제 버튼은 python backend/server.py 로 실행해야 보입니다.";
   }
   $("tripAdd").classList.toggle("hidden", !API_OK);
   $("tripAdd").onclick = async () => {
@@ -299,8 +300,9 @@ function routePoints() {
 function renderAll(startIdx) {
   renderTripLayers();
   const m = TL.meta;
-  const man = shown.filter(d => d.method === "manual").length;
-  $("stats").textContent = `전체 ${m.total} · GPS ${m.gps} · 같은장소 ${m.held + m.held_next} · 직접 ${man} · ${m.start} ~ ${m.end}`;
+  const c = { gps: 0, held: 0, held_next: 0, manual: 0 };
+  shown.forEach(d => { if (c[d.method] !== undefined) c[d.method]++; });
+  $("stats").textContent = `전체 ${m.total} · GPS ${c.gps} · 같은장소 ${c.held + c.held_next} · 직접 ${c.manual} · ${m.start} ~ ${m.end}`;
   $("scrub").max = shown.length - 1;
   go(Math.max(0, Math.min(startIdx, shown.length - 1)));
 }
@@ -319,7 +321,9 @@ function applyManual() {
   for (const r of rules) {
     for (const d of shown) {
       if (d.method === "gps") continue;
-      const hit = r.mode === "before" ? (d._ts < fat) : (d._ts >= r.fromTs && d._ts <= r.toTs);
+      const hit = r.mode === "before" ? (d._ts < fat)
+        : r.mode === "current" ? (d.file === r.file)
+        : (d._ts >= r.fromTs && d._ts <= r.toTs);
       if (!hit) continue;
       if (!d._orig) d._orig = { lat: d.d_lat, lon: d.d_lon, method: d.method, at: d.at };
       d.d_lat = r.lat; d.d_lon = r.lon; d.method = "manual"; d.at = r.name;
@@ -350,13 +354,22 @@ function mPick(p) {
   MPLACE = { name: (p.name || (p.display_name || "").split(",")[0] || "지정위치"), lat: +p.lat, lon: +p.lon, addr: p.display_name };
   $("mscope").classList.remove("hidden");
   $("mplace").innerHTML = `<b>${MPLACE.name}</b><br><small>${MPLACE.addr}</small>`;
+  const cur = shown[idx];
+  const mc = $("mcurN");
+  mc.textContent = cur ? cur.file : "-";
+  mc.title = cur ? cur.file : "";
   $("mbeforeN").textContent = shown.filter(d => d.method !== "gps" && d._ts < firstAnchorTs()).length;
 }
 function mApply() {
   if (!MPLACE || !TL) return;
   const mode = document.querySelector('input[name=mscope]:checked').value;
   const rules = MANUAL[TL.trip] || (MANUAL[TL.trip] = []);
-  if (mode === "before") {
+  if (mode === "current") {
+    const cur = shown[idx];
+    if (!cur) return;
+    if (cur.method === "gps") { $("mapstatus").textContent = "GPS 확정 사진은 지정할 필요 없음"; return; }
+    rules.push({ mode, file: cur.file, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon });
+  } else if (mode === "before") {
     rules.push({ mode, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon });
   } else {
     const f = $("mfrom").value, t = $("mto").value;
@@ -372,7 +385,9 @@ function renderRules() {
   rules.forEach((r, i) => {
     const div = document.createElement("div");
     div.className = "mrule";
-    const scope = r.mode === "before" ? "첫 GPS 이전 전부" : `${new Date(r.fromTs).toLocaleString()} ~ ${new Date(r.toTs).toLocaleString()}`;
+    const scope = r.mode === "before" ? "첫 GPS 이전 전부"
+      : r.mode === "current" ? `사진 1장: ${r.file || ""}`
+      : `${new Date(r.fromTs).toLocaleString()} ~ ${new Date(r.toTs).toLocaleString()}`;
     div.innerHTML = `<span>📍 ${r.name}<br><small>${scope}</small></span>`;
     const del = document.createElement("button");
     del.textContent = "삭제";
