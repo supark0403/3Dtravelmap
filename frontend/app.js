@@ -266,8 +266,17 @@ async function main() {
     if (LANG) { langSel.value = LANG; setLang(LANG); }
     langSel.onchange = e => setLang(e.target.value);
   }
+  const pickCaps = () => {
+    const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+    const HAS_DIR = !!window.showDirectoryPicker;
+    const HAS_FS_FILE = !!window.showOpenFilePicker;
+    let HAS_DIR_ATTR = false;
+    try { HAS_DIR_ATTR = ("webkitdirectory" in document.createElement("input")) && !IS_MOBILE; } catch (e) {}
+    return { IS_MOBILE, HAS_DIR, HAS_FS_FILE, HAS_DIR_ATTR };
+  };
   $("localOpen").onclick = async () => {
-    if (window.showDirectoryPicker) {
+    const { HAS_DIR, HAS_FS_FILE, HAS_DIR_ATTR } = pickCaps();
+    if (HAS_DIR) {
       try {
         const files = await pickLocalFolderFS();
         if (files && files.length) { loadLocalFiles(files); return; }
@@ -276,8 +285,8 @@ async function main() {
         if (e && e.name === "AbortError") return; // cancel /取消
         $("tripNote").textContent = T("openFailRo") + (e.message || e);
       }
-    } else if (window.showOpenFilePicker) {
-      // 모바일 크롬 등: 파일 직접 선택 (폴더 API 없음, 쓰기 불가)
+    } else if (HAS_FS_FILE && !IS_MOBILE) {
+      // 데스크탑 파일 직접 선택 (폴더 API 없음)
       try {
         const handles = await window.showOpenFilePicker({ multiple: true, types: [{
           description: "photos", accept: {
@@ -290,8 +299,12 @@ async function main() {
       } catch (e) {
         if (e && e.name === "AbortError") return;
       }
+    } else if (HAS_DIR_ATTR) {
+      $("localPick").click();
+      return;
     }
-    $("localPick").click();
+    // 모바일/폴백: 순수 다중 파일 선택 (directory 속성 없는 input만 동작 보장)
+    $("filePick").click();
   };
   async function loadLocalFiles(files) {
     try {
@@ -299,6 +312,13 @@ async function main() {
       showHome();
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
   }
+  $("filePick").onchange = async e => {
+    const files = e.target.files;
+    e.target.value = "";
+    if (!files || !files.length) return;
+    LOCAL.write = false;
+    loadLocalFiles(files);
+  };
   $("localPick").onchange = async e => {
     const files = e.target.files;
     e.target.value = "";
