@@ -20,15 +20,20 @@ async function parseLocalFiles(fileList, onProgress) {
   const files = [...fileList].filter(f => LOCAL_IMG.test(f.name) || LOCAL_VID.test(f.name));
   if (!files.length) throw new Error(T("noPhotos"));
   const groups = {};
+  let flat = false;
   for (const f of files) {
-    const parts = (f._relpath || f.webkitRelativePath || f.name).split("/");
-    const trip = parts.length > 2 ? parts[1] : parts[0];
+    const rp = f._relpath || f.webkitRelativePath || "";
+    const parts = rp.split("/").filter(Boolean);
+    let trip;
+    if (parts.length > 2) trip = parts[1];
+    else if (parts.length === 2) trip = parts[0];
+    else { trip = T("pickedTrip"); flat = true; }
     (groups[trip] || (groups[trip] = [])).push(f);
   }
   LOCAL.trips = {};
   LOCAL.order = [];
-  const rp = (files[0].webkitRelativePath || "").split("/");
-  LOCAL.root = rp.length > 1 ? rp[0] : "";
+  const rp0 = (files[0]._relpath || files[0].webkitRelativePath || "").split("/").filter(Boolean);
+  LOCAL.root = rp0.length > 1 ? rp0[0] : "";
   const names = Object.keys(groups).sort();
   let done = 0;
   for (const name of names) {

@@ -83,7 +83,7 @@ function onBaseError(kind) {
   else $("mapstatus").textContent = T("mapFailAll");
 }
 
-const EMO_ICONS = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢", bed: "🛏️", sleep: "🛌" };
+const EMO_ICONS = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢" };
 function emoImage(emoji) {
   const c = document.createElement("canvas");
   c.width = c.height = 96;
@@ -285,6 +285,15 @@ async function main() {
       showHome();
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
   }
+  if (!window.showDirectoryPicker) $("fileBtn").classList.remove("hidden");
+  $("fileBtn").onclick = () => $("filePick").click();
+  $("filePick").onchange = async e => {
+    const files = e.target.files;
+    e.target.value = "";
+    if (!files || !files.length) return;
+    LOCAL.write = false;
+    loadLocalFiles(files);
+  };
   $("localPick").onchange = async e => {
     const files = e.target.files;
     e.target.value = "";
