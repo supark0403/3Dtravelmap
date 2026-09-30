@@ -275,11 +275,13 @@ async function main() {
     return { IS_MOBILE, HAS_DIR, HAS_FS_FILE, HAS_DIR_ATTR };
   };
   $("localOpen").onclick = async () => {
-    const { HAS_DIR, HAS_FS_FILE, HAS_DIR_ATTR } = pickCaps();
+    const { IS_MOBILE, HAS_DIR, HAS_FS_FILE, HAS_DIR_ATTR } = pickCaps();
     if (HAS_DIR) {
       try {
-        const files = await pickLocalFolderFS(n => { $("tripNote").textContent = T("reading", { a: n, b: "…" }); });
+        const r = await pickLocalFolderFS(n => { $("tripNote").textContent = T("reading", { a: n, b: "…" }); });
+        const files = r && r.files;
         if (files && files.length) { loadLocalFiles(files); return; }
+        $("tripNote").textContent = T("noPhotos");
         return;
       } catch (e) {
         if (e && e.name === "AbortError") return; // cancel /取消
@@ -308,8 +310,9 @@ async function main() {
   };
   async function loadLocalFiles(files) {
     try {
-      await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = T("reading", { a, b }); });
+      const r = await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = T("reading", { a, b }); });
       showHome();
+      if (r && r.skipped) $("tripNote").textContent = T("skipped", { n: r.skipped });
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
   }
   $("filePick").onchange = async e => {
