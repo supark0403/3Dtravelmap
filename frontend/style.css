@@ -6,7 +6,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #topbar button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
 #topbar button.on{border-color:#4caf50;color:#8fdc92}
 #tripname{font-weight:700}#mapstatus{font-size:11px;opacity:.7}.spacer{flex:1}
-#trips{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,14,20,.92);color:#fff;border-radius:12px;padding:20px 24px;z-index:6;width:min(92vw,640px);max-height:88vh;overflow:auto}
+#trips{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(10,14,20,.92);color:#fff;border-radius:12px;padding:20px 24px;z-index:6;width:min(92vw,640px);max-height:88vh;overflow:auto}
 #trips.hidden{display:none}#triplist{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto}
 #trips .trow{display:flex;align-items:center;gap:8px}#trips .trow h2{margin:0 0 8px}
 #trips .trow button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
