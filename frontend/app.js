@@ -278,7 +278,7 @@ async function main() {
     const { HAS_DIR, HAS_FS_FILE, HAS_DIR_ATTR } = pickCaps();
     if (HAS_DIR) {
       try {
-        const files = await pickLocalFolderFS();
+        const files = await pickLocalFolderFS(n => { $("tripNote").textContent = T("reading", { a: n, b: "…" }); });
         if (files && files.length) { loadLocalFiles(files); return; }
         return;
       } catch (e) {
