@@ -317,29 +317,64 @@ async function main() {
 
 // 사진 패널 드래그 이동 (위치 기억)
 function initPanelDrag() {
-  const el = $("panel");
+  const el = $("panel"), EDGE = 9;
   try {
     const saved = JSON.parse(localStorage.getItem("tm_panel_pos") || "null");
     if (saved && +saved.top >= 0 && +saved.left >= 0) {
       el.style.top = saved.top + "px"; el.style.left = saved.left + "px"; el.style.right = "auto";
+      if (+saved.width > 0) el.style.width = saved.width + "px";
+      if (+saved.height > 0) el.style.height = saved.height + "px";
     }
   } catch (e) {}
-  let sx, sy, ox, oy, dragging = false;
+  let mode = null, sx, sy, r0;
+  const zone = (e) => {
+    const r = el.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const w = x < EDGE ? "w" : (r.width - x < EDGE ? "e" : "");
+    const h = y < EDGE ? "n" : (r.height - y < EDGE ? "s" : "");
+    return w + h;
+  };
+  const cursors = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize", n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize" };
+  el.addEventListener("mousemove", (e) => {
+    if (mode || panelMin) return;
+    const z = zone(e);
+    el.style.cursor = z ? cursors[z] : "";
+  });
   el.addEventListener("mousedown", (e) => {
+    if (panelMin) return;
     if (e.target.closest("button,input,img,video,a,select,textarea")) return;
-    dragging = true; sx = e.clientX; sy = e.clientY;
-    const r = el.getBoundingClientRect(); ox = r.left; oy = r.top;
-    el.style.left = ox + "px"; el.style.top = oy + "px"; el.style.right = "auto";
+    const z = zone(e);
+    mode = z || "move";
+    sx = e.clientX; sy = e.clientY;
+    const r = el.getBoundingClientRect();
+    r0 = { left: r.left, top: r.top, width: r.width, height: r.height };
+    el.style.left = r0.left + "px"; el.style.top = r0.top + "px"; el.style.right = "auto";
+    el.style.cursor = mode === "move" ? "move" : cursors[mode];
     e.preventDefault();
   });
   window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    el.style.left = Math.max(0, ox + e.clientX - sx) + "px";
-    el.style.top = Math.max(0, oy + e.clientY - sy) + "px";
+    if (!mode) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    let { left, top, width, height } = r0;
+    if (mode === "move") {
+      left = Math.max(0, left + dx); top = Math.max(0, top + dy);
+    } else {
+      if (mode.includes("e")) width = Math.max(220, width + dx);
+      if (mode.includes("s")) height = Math.max(120, height + dy);
+      if (mode.includes("w")) { width = Math.max(220, width - dx); if (width > 220) left = Math.max(0, left + dx); }
+      if (mode.includes("n")) { height = Math.max(120, height - dy); if (height > 120) top = Math.max(0, top + dy); }
+      el.style.width = width + "px"; el.style.height = height + "px";
+    }
+    el.style.left = left + "px"; el.style.top = top + "px";
   });
   window.addEventListener("mouseup", () => {
-    if (!dragging) return; dragging = false;
-    try { localStorage.setItem("tm_panel_pos", JSON.stringify({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10) })); } catch (e) {}
+    if (!mode) return; mode = null; el.style.cursor = "";
+    try {
+      localStorage.setItem("tm_panel_pos", JSON.stringify({
+        left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10),
+        width: Math.round(el.getBoundingClientRect().width), height: Math.round(el.getBoundingClientRect().height),
+      }));
+    } catch (e) {}
   });
 }
 
