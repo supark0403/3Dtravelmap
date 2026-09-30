@@ -309,11 +309,23 @@ async function main() {
     $("filePick").click();
   };
   async function loadLocalFiles(files) {
+    let lastProg = Date.now(), stuckShown = false;
+    const watcher = setInterval(() => {
+      if (Date.now() - lastProg > 45000 && !stuckShown) {
+        stuckShown = true;
+        $("tripNote").textContent += " " + T("stuckMsg");
+      }
+    }, 10000);
     try {
-      const r = await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = T("reading", { a, b }); });
+      const r = await parseLocalFiles(files, (a, b) => { lastProg = Date.now(); $("tripNote").textContent = T("reading", { a, b }); });
       showHome();
-      if (r && r.skipped) $("tripNote").textContent = T("skipped", { n: r.skipped });
+      let m = 0;
+      LOCAL.order.forEach(n => { m += (LOCAL.trips[n].meta.total || 0); });
+      let msg = T("doneMsg", { t: LOCAL.order.length, m });
+      if (r && r.skipped) msg += " " + T("skipped", { n: r.skipped });
+      $("tripNote").textContent = msg;
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
+    finally { clearInterval(watcher); }
   }
   $("filePick").onchange = async e => {
     const files = e.target.files;
