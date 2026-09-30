@@ -215,7 +215,7 @@ function renderTripLayers() {
 
 async function main() {
   map = new maplibregl.Map({ container: "map", style: styleFor("street"),
-    center: [127.5, 36.5], zoom: 2, pitch: 0, attributionControl: true });
+    center: [127.5, 36.5], zoom: 2, pitch: 0, attributionControl: { compact: true } });
   if (map.setProjection) { try { map.setProjection({ type: "globe" }); } catch (e) {} }
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
   map.on("load", () => { mapReady = true; setup3D(); });
