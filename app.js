@@ -38,6 +38,7 @@ function styleFor(kind) { return kind === "sat" ? satStyle() : LIBERTY; }
 
 // style (re)loaded: terrain + hillshade + trip layers
 function setup3D() {
+  styleReady = true;
   try {
     if (!map.getSource("dem")) {
       map.addSource("dem", { type: "raster-dem", tiles: DEM_TILES, tileSize: 256, maxzoom: 15, encoding: "terrarium" });
@@ -117,10 +118,10 @@ function dotColor(d) {
   return d.method === "held_next" ? "#ab47bc" : "#29b6f6";
 }
 
-let tripRenderTries = 0;
+let tripRenderTries = 0, styleReady = false;
 function renderTripLayers() {
-  if (!mapReady || !map.isStyleLoaded()) {
-    // 스타일 로드 전이면 버리지 말고 재시도 (느린 네트워크 대비)
+  // 타일 로딩 여부와 무관하게 스타일 파싱 후면 레이어 추가 가능. 스타일 미완성 때만 재시도.
+  if (!mapReady || !styleReady) {
     if (TL && shown.length && tripRenderTries < 30) {
       tripRenderTries++;
       setTimeout(() => { if (TL && shown.length) renderTripLayers(); }, 1000);
@@ -130,6 +131,7 @@ function renderTripLayers() {
     return;
   }
   tripRenderTries = 0;
+  try {
   for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-mover", "tm-days"]) if (map.getLayer(l)) map.removeLayer(l);
   for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-mover-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
   // 날짜별 그룹 (shown은 시간순)
@@ -211,6 +213,13 @@ function renderTripLayers() {
       "text-allow-overlap": true, "text-font": ["Noto Sans Bold"] },
     paint: { "text-color": "#111", "text-halo-color": "#fff", "text-halo-width": 2 } });
   applyFilter();
+  } catch (e) {
+    // 스타일 교체 중 등 일시 실패 → 재시도
+    if (TL && shown.length && tripRenderTries < 30) {
+      tripRenderTries++;
+      setTimeout(() => { if (TL && shown.length) renderTripLayers(); }, 1000);
+    }
+  }
 }
 
 async function main() {
@@ -473,6 +482,7 @@ function enterTrip(tl, label) {
 
 function renderAll(startIdx) {
   renderTripLayers();
+  if (!shown.length) { $("mapstatus").textContent = T("emptyTrip"); return; }
   const m = TL.meta;
   const c = { gps: 0, held: 0, held_next: 0, manual: 0 };
   shown.forEach(d => { if (c[d.method] !== undefined) c[d.method]++; });
@@ -695,9 +705,10 @@ function applyPanelMin() {
 
 let shownDay = null;
 function go(i) {
+  if (!shown.length) return;
   idx = Math.max(0, Math.min(shown.length - 1, i));
   // 레이어가 스타일 로드 타이밍에 밀려 없으면 복구
-  if (TL && mapReady && map.isStyleLoaded() && !map.getLayer("tm-photos")) renderTripLayers();
+  if (TL && mapReady && !map.getLayer("tm-photos")) renderTripLayers();
   $("scrub").value = idx;
   const d = shown[idx];
   const [mode, label] = segMode(shown[idx - 1], d);
