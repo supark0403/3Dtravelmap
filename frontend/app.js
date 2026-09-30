@@ -55,6 +55,12 @@ function setup3D() {
 }
 
 let buildingsOn = true;
+let moverOn = true;
+try { moverOn = localStorage.getItem("tm_mover") !== "0"; } catch (e) {}
+function applyMover() {
+  try { if (map.getLayer("tm-mover")) map.setLayoutProperty("tm-mover", "visibility", moverOn ? "visible" : "none"); } catch (e) {}
+  document.querySelectorAll("#moverBtn").forEach(b => b.classList.toggle("on", moverOn));
+}
 function applyBuildings() {
   for (const id of ["building-3d", "tm-build3d"]) {
     try { if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", buildingsOn ? "visible" : "none"); } catch (e) {}
@@ -63,7 +69,7 @@ function applyBuildings() {
 }
 function setBase(kind) {
   baseKind = kind;
-  document.querySelectorAll(".mapbtn").forEach(b => { if (b.dataset.map !== "bld") b.classList.toggle("on", b.dataset.map === kind); });
+  document.querySelectorAll(".mapbtn").forEach(b => { if (b.dataset.map !== "bld" && b.id !== "moverBtn") b.classList.toggle("on", b.dataset.map === kind); });
   try {
     map.setStyle(styleFor(kind));
     $("mapstatus").textContent = T("mapIs", { x: mapLabel(kind) });
@@ -213,6 +219,7 @@ function renderTripLayers() {
       "text-allow-overlap": true, "text-font": ["Noto Sans Bold"] },
     paint: { "text-color": "#111", "text-halo-color": "#fff", "text-halo-width": 2 } });
   applyFilter();
+  applyMover();
   } catch (e) {
     // 스타일 교체 중 등 일시 실패 → 재시도
     if (TL && shown.length && tripRenderTries < 30) {
@@ -245,6 +252,12 @@ async function main() {
     if (b.dataset.map === "bld") { buildingsOn = !buildingsOn; applyBuildings(); return; }
     baseFailed = {}; setBase(b.dataset.map);
   });
+  $("moverBtn").onclick = () => {
+    moverOn = !moverOn;
+    try { localStorage.setItem("tm_mover", moverOn ? "1" : "0"); } catch (e) {}
+    applyMover();
+  };
+  applyMover();
   $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
 
   $("home").onclick = showHome;
@@ -728,13 +741,8 @@ function go(i) {
   if (dk !== shownDay) {
     shownDay = dk;
     const b = $("daybadge");
-    // 1일차 → 침대 → 2일차: 변경 순간 침대 표시 후 2초 발광
-    b.textContent = "🛏️";
+    b.textContent = T("day", { n: dayNum(idx) });
     glowDay(b);
-    clearTimeout(b._dayTO);
-    b._dayTO = setTimeout(() => {
-      if (shownDay === dk) { b.textContent = T("day", { n: dayNum(idx) }); glowDay(b); }
-    }, 700);
   }
   const isHeic = /\.(heic|heif)$/i.test(d.file || "");
   if (d.type === "photo" && isHeic) {
