@@ -37,22 +37,27 @@ async function parseLocalFiles(fileList, onProgress) {
   if (onProgress) onProgress(0, files.length);
   const names = Object.keys(groups).sort();
   let done = 0, skippedFiles = 0;
+  const CONC = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4)));
   const timed = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   for (const name of names) {
     const fl = groups[name].sort((a, b) => (a.name < b.name ? -1 : 1));
-    const items = [];
+    const items = new Array(fl.length);
     let k = 0;
-    for (const f of fl) {
-      try {
-        items.push(await timed(parseLocalFile(f, name, k++), 30000));
-      } catch (e) {
-        skippedFiles++;
-        k++;
-        continue;
+    const ids = fl.map(() => "m" + String(k++).padStart(4, "0"));
+    let wi = 0;
+    const workers = Array.from({ length: Math.min(CONC, fl.length) }, async () => {
+      while (wi < fl.length) {
+        const j = wi++;
+        try {
+          items[j] = await timed(parseLocalFile(fl[j], name, ids[j]), 30000);
+        } catch (e) {
+          skippedFiles++;
+        }
+        if (++done % 5 === 0 && onProgress) onProgress(done, files.length);
       }
-      if (++done % 5 === 0 && onProgress) onProgress(done, files.length);
-    }
-    const tl = buildLocalTimeline(name, items);
+    });
+    await Promise.all(workers);
+    const tl = buildLocalTimeline(name, items.filter(Boolean));
     LOCAL.trips[name] = tl;
     LOCAL.order.push(name);
   }
@@ -60,8 +65,8 @@ async function parseLocalFiles(fileList, onProgress) {
   return { skipped: skippedFiles };
 }
 
-async function parseLocalFile(f, trip, k) {
-  const m = { id: "m" + String(k).padStart(4, "0"), trip, file: f.name,
+async function parseLocalFile(f, trip, id) {
+  const m = { id, trip, file: f.name,
     type: LOCAL_VID.test(f.name) ? "video" : "photo",
     has_gps: false, lat: null, lon: null, datetime: null, size: f.size,
     u: URL.createObjectURL(f), _handle: f._handle || null };
