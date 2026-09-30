@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3D Travel Map</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<link rel="stylesheet" href="style.css?v=6db8aee">
+<link rel="stylesheet" href="style.css?v=d1a105a">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
@@ -86,7 +86,7 @@
     <div id="mplace"></div>
     <label><input type="radio" name="mscope" value="current" checked> <span data-i18n="scopeCurrent">지금 보고 있는 사진 1장</span> (<span id="mcurN" title=""></span>)</label><br>
     <label><input type="radio" name="mscope" value="before"> <span data-i18n="scopeBefore">첫 GPS 이전 사진 전부</span> (<span id="mbeforeN"></span><span data-i18n="photoUnit">장</span>)</label><br>
-    <label><input type="radio" name="mscope" value="range" data-i18n="scopeRange"> 시간 범위 지정</label>
+    <label><input type="radio" name="mscope" value="range"> <span data-i18n="scopeRange">시간 범위 지정</span></label>
     <div class="mrow"><input id="mfrom" type="datetime-local"><span>~</span><input id="mto" type="datetime-local"></div>
     <div><small data-i18n="mnote">지정한 위치가 새 앵커가 되어 앞뒤 사진이 규칙대로 재배치됨 · JPEG 원본 EXIF에도 기록 (쓰기 허용 폴더)</small></div>
     <button id="mapply" data-i18n="apply">적용</button>
@@ -96,8 +96,8 @@
   <div id="mrules"></div>
   <div class="mrow"><button id="mexport" data-i18n="export">내보내기</button><button id="mimportBtn" data-i18n="import">가져오기</button><input id="mimport" type="file" accept=".json" class="hidden"></div>
 </div>
-<script src="lang.js?v=6db8aee"></script>
-<script src="local.js?v=6db8aee"></script>
-<script src="app.js?v=6db8aee"></script>
+<script src="lang.js?v=d1a105a"></script>
+<script src="local.js?v=d1a105a"></script>
+<script src="app.js?v=d1a105a"></script>
 </body>
 </html>

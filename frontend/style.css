@@ -15,8 +15,8 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #localPick{display:none}
 #localPath{font-size:12px;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:38vw}
 #hero{background:rgba(0,0,0,.55);border-radius:10px;padding:14px 18px;margin:4px 0 12px;text-align:center}
-#hero h1{font-size:19px;margin:0 0 8px}
-#hero p{font-size:13px;line-height:1.7;margin:6px 0;opacity:.92}
+#hero h1{font-size:19px;margin:0 0 8px;text-wrap:balance}
+#hero p{font-size:13px;line-height:1.8;margin:8px auto;opacity:.92;max-width:62ch;text-wrap:balance}
 #seoKw{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;color:transparent !important;user-select:none}
 .heic{background:#1d2733;border-radius:6px;padding:24px 12px;text-align:center;font-size:13px}
 .heic a{color:#8fdc92}

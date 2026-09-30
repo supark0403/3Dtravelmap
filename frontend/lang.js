@@ -607,6 +607,11 @@ function setLang(l) {
   const sel = document.getElementById("langSel");
   if (sel) sel.value = l;
   shownDay = null;
-  if (typeof renderRules === "function" && typeof TL !== "undefined" && TL) renderRules();
-  if (typeof TL !== "undefined" && TL && typeof renderAll === "function") renderAll(idx);
+  if (typeof TL !== "undefined" && TL) {
+    if (typeof renderRules === "function") renderRules();
+    if (typeof renderAll === "function") renderAll(idx);
+    $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
+  } else if (typeof showHome === "function") {
+    showHome();
+  }
 }
