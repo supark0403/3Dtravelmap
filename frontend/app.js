@@ -276,6 +276,20 @@ async function main() {
         if (e && e.name === "AbortError") return; // cancel /取消
         $("tripNote").textContent = T("openFailRo") + (e.message || e);
       }
+    } else if (window.showOpenFilePicker) {
+      // 모바일 크롬 등: 파일 직접 선택 (폴더 API 없음, 쓰기 불가)
+      try {
+        const handles = await window.showOpenFilePicker({ multiple: true, types: [{
+          description: "photos", accept: {
+            "image/*": [".jpg", ".jpeg", ".png", ".heic", ".heif"],
+            "video/*": [".mp4", ".mov", ".m4v"] } }] });
+        const files = [];
+        for (const h of handles) files.push(await h.getFile());
+        if (files.length) { LOCAL.write = false; loadLocalFiles(files); }
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return;
+      }
     }
     $("localPick").click();
   };
