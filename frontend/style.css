@@ -35,6 +35,7 @@ input[type=file].hidden{position:fixed;opacity:0;width:1px;height:1px;pointer-ev
 #title{font-weight:700;margin-bottom:6px}#stats{font-weight:400;font-size:12px;opacity:.85}
 #controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 #controls button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
+#controls button:disabled{opacity:.35;cursor:default}
 #speeds{display:flex;gap:6px;align-items:center}
 #speedSlider{width:110px}#speedVal{min-width:40px;font-size:12px}
 #scrub{flex:1;min-width:120px}#cur{font-size:13px;margin-top:6px;opacity:.9}
