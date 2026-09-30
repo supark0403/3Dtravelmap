@@ -407,6 +407,13 @@ function initPanelDrag() {
 
 async function showHome() {
   stop();
+  if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; }
+  try {
+    for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-mover", "tm-days", "tm-hill"]) if (map.getLayer(l)) map.removeLayer(l);
+    for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-mover-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
+  } catch (e) {}
+  moverPos = [0, 0]; moverIcon = "walk";
+  TL = null; shown = []; idx = 0; shownDay = null;
   $("hud").classList.add("hidden");
   $("panel").classList.add("hidden");
   $("manual").classList.add("hidden");
@@ -486,11 +493,11 @@ function applyManual() {
   shown.forEach(d => { if (d._orig) { d.d_lat = d._orig.lat; d.d_lon = d._orig.lon; d.method = d._orig.method; d.at = d._orig.at; } delete d._rule; });
   const rules = MANUAL[TL.trip] || [];
   const fat = firstAnchorTs();
-  // 1) 사진별 직접지정 매칭
+  // 1) 사진별 직접지정 매칭 (force 규칙은 GPS 사진에도 적용)
   const match = new Map();
   for (const d of shown) {
-    if (d.method === "gps") continue;
     for (const r of rules) {
+      if (d.method === "gps" && !r.force) continue;
       const hit = r.mode === "before" ? (d._ts < fat)
         : r.mode === "current" ? (d.file === r.file)
         : (d._ts >= r.fromTs && d._ts <= r.toTs);
@@ -500,9 +507,10 @@ function applyManual() {
   // 2) 시간순 앵커 체인 재계산: GPS + 직접지정이 모두 앵커, 나머지는 직전 앵커에 hold
   const order = [...shown].sort((a, b) => (a._ts - b._ts) || (a.id < b.id ? -1 : 1));
   const anchorOf = (d) => {
-    if (d.method === "gps") return { lat: d.d_lat, lon: d.d_lon, label: d.id, ref: null };
     const r = match.get(d);
-    return r ? { lat: r.lat, lon: r.lon, label: r.name, ref: r } : null;
+    if (r) return { lat: r.lat, lon: r.lon, label: r.name, ref: r };
+    if (d.method === "gps") return { lat: d.d_lat, lon: d.d_lon, label: d.id, ref: null };
+    return null;
   };
   const nextAnchor = new Array(order.length).fill(null);
   let nxt = null;
@@ -514,7 +522,7 @@ function applyManual() {
   let cur = null;
   order.forEach((d, i) => {
     const a = anchorOf(d);
-    if (a && d.method === "gps") { cur = a; return; }
+    if (a && d.method === "gps" && !match.get(d)) { cur = a; return; }
     if (a) { stamp(d, a.lat, a.lon, "manual", a.label); cur = a; d._rule = a.ref; }
     else if (cur) stamp(d, cur.lat, cur.lon, "held", cur.label);
     else if (nextAnchor[i]) { const na = nextAnchor[i]; stamp(d, na.lat, na.lon, "held_next", na.label); }
@@ -596,18 +604,25 @@ function mApply() {
   if (!MPLACE || !TL) return;
   const mode = document.querySelector('input[name=mscope]:checked').value;
   const rules = MANUAL[TL.trip] || (MANUAL[TL.trip] = []);
-  let nr = null;
+  let nr = null, gpsHit = 0;
+  const fat = firstAnchorTs();
   if (mode === "current") {
     const cur = shown[idx];
     if (!cur) return;
-    if (cur.method === "gps") { $("mapstatus").textContent = T("gpsNoNeed"); return; }
     nr = { mode, file: cur.file, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon };
+    gpsHit = cur.method === "gps" ? 1 : 0;
   } else if (mode === "before") {
     nr = { mode, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon };
+    gpsHit = shown.filter(d => d.method === "gps" && d._ts < fat).length;
   } else {
     const f = $("mfrom").value, t = $("mto").value;
     if (!f || !t) { $("mapstatus").textContent = T("needRange"); return; }
     nr = { mode: "range", name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon, fromTs: Date.parse(f), toTs: Date.parse(t) };
+    gpsHit = shown.filter(d => d.method === "gps" && d._ts >= nr.fromTs && d._ts <= nr.toTs).length;
+  }
+  if (gpsHit > 0) {
+    nr.force = true;
+    if (!confirm(T("gpsOverwrite", { n: gpsHit }))) return;
   }
   rules.push(nr);
   saveManual(); renderRules(); applyManual(); renderAll(idx);
@@ -772,7 +787,7 @@ function interlude(iconIdx, target) {
   wakeInt = setInterval(() => {
     k = Math.min(k + 1, seq.length - 1);
     setMover(moverPos, seq[k]);
-    setMoverSize(k % 2 ? 1.35 : 1.0);
+    setMoverSize(k % 2 ? 1.0 : 1.35);
   }, 800);
   interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
 }
