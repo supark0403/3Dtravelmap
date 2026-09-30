@@ -47,6 +47,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 .mrule span{flex:1}
 #daybadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:700;border-radius:8px;padding:6px 16px;z-index:5}
 #daybadge.hidden{display:none}
+#panel.min{width:max-content;min-width:0;min-height:0;padding:8px 10px}
 #panel.min #media,#panel.min #info{display:none}
 #minbtn{float:right;background:none;border:none;color:#fff;cursor:pointer;font-size:14px;margin-left:4px}
 .dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer}
