@@ -6,7 +6,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #topbar button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
 #topbar button.on{border-color:#4caf50;color:#8fdc92}
 #tripname{font-weight:700}#mapstatus{font-size:11px;opacity:.7}.spacer{flex:1}
-#trips{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(10,14,20,.92);color:#fff;border-radius:12px;padding:20px 24px;z-index:6;width:min(92vw,640px);max-height:88vh;overflow:auto}
+#trips{position:fixed;top:48px;left:50%;transform:translateX(-50%);background:rgba(10,14,20,.92);color:#fff;border-radius:12px;padding:20px 24px;z-index:6;width:min(92vw,640px);max-height:82vh;overflow:auto}
 #trips.hidden{display:none}#triplist{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto}
 #trips .trow{display:flex;align-items:center;gap:8px}#trips .trow h2{margin:0 0 8px}
 #trips .trow button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
@@ -60,7 +60,7 @@ input[type=file].hidden{position:fixed;opacity:0;width:1px;height:1px;pointer-ev
 #mresults .tripcard{font-size:12px}#mplace{font-size:13px;margin:6px 0}#mrules{font-size:12px}
 .mrule{display:flex;gap:6px;align-items:center;background:#1d2733;border-radius:6px;padding:4px 8px;margin:4px 0}
 .mrule span{flex:1}
-#daybadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:700;border-radius:8px;padding:6px 16px;z-index:5}
+#daybadge{position:fixed;top:48px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:700;border-radius:8px;padding:6px 16px;z-index:5}
 #daybadge.hidden{display:none}
 #daybadge.glow{animation:dayglow 2s ease-in-out 1;color:#fff;text-shadow:0 0 12px #ffd54f,0 0 28px #ff9800,0 0 44px #ff9800}
 @keyframes dayglow{0%{text-shadow:0 0 2px #fff}30%{text-shadow:0 0 18px #ffd54f,0 0 42px #ff9800}100%{text-shadow:0 0 2px #fff}}
