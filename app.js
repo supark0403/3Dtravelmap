@@ -83,7 +83,7 @@ function onBaseError(kind) {
   else $("mapstatus").textContent = T("mapFailAll");
 }
 
-const EMO_ICONS = { walk: "🚶" };
+const EMO_ICONS = { walk: "🚶", plane: "✈️" };
 function emoImage(emoji) {
   const c = document.createElement("canvas");
   c.width = c.height = 96;
@@ -101,11 +101,13 @@ function registerMoverIcons() {
   } catch (err) {}
 }
 
-// segment label (always walk; speed-based transport icons removed)
+// segment label (walk fixed; plane only when crossing a country border)
 function segMode(a, b) {
   if (!a || !b) return ["walk", T("segStay")];
   if (b.method === "manual") return ["walk", "📍 " + (b.at || T("segManualFallback"))];
   if (b._ts <= a._ts) return ["walk", T("segStay")];
+  const ca = countryOf(a), cb = countryOf(b);
+  if (ca != null && cb != null && ca !== cb) return ["plane", T("segPlane")];
   return ["walk", T("segWalk")];
 }
 
@@ -251,6 +253,7 @@ async function main() {
   };
   applyMover();
   $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
+  loadCountries(); // 국경 판정용 폴리곤 (실패해도 도보로 동작)
 
   $("home").onclick = showHome;
   const langSel = $("langSel");

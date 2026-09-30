@@ -15,6 +15,82 @@ function localHavKm(a, b, c, d) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// ---- 국가 판정 (국경 넘으면 비행기): countries.json 오프라인 폴리곤 ----
+let CC_POLYS = null;
+async function loadCountries() {
+  try {
+    const j = await (await fetch("countries.json")).json();
+    const out = [];
+    (j.features || []).forEach((f, fi) => {
+      const g = f.geometry;
+      if (!g) return;
+      const polys = g.type === "Polygon" ? [g.coordinates]
+        : g.type === "MultiPolygon" ? g.coordinates : [];
+      for (const p of polys) {
+        let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
+        for (const ring of p) for (const pt of ring) {
+          if (pt[0] < x0) x0 = pt[0]; if (pt[0] > x1) x1 = pt[0];
+          if (pt[1] < y0) y0 = pt[1]; if (pt[1] > y1) y1 = pt[1];
+        }
+        out.push({ id: fi, p, b: [x0, y0, x1, y1] });
+      }
+    });
+    CC_POLYS = out;
+  } catch (e) { CC_POLYS = null; }
+}
+function ccInPoly(polys, x, y) {
+  for (const ring of polys) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    if (inside) return true;
+  }
+  return false;
+}
+function countryOf(d) {
+  const k = d.d_lon + "," + d.d_lat;
+  if (d._cck === k) return d._cc;
+  const x = d.d_lon, y = d.d_lat;
+  let cc = null;
+  if (CC_POLYS && x != null && y != null) {
+    for (const c of CC_POLYS) {
+      const b = c.b, w = b[2] - b[0];
+      const inX = w > 180 ? (x >= b[0] || x <= b[2]) : (x >= b[0] && x <= b[2]);
+      if (!inX || y < b[1] || y > b[3]) continue;
+      if (ccInPoly(c.p, x, y)) { cc = c.id; break; }
+    }
+  }
+  d._cck = k; d._cc = cc;
+  if (cc == null && CC_POLYS && x != null && y != null) {
+    // 데이터셋에 없는 작은 섬(제주도 등): 실제 경계선까지 가장 가까운 국가로 폴백
+    const kx = Math.cos(y * Math.PI / 180);
+    let best = null, bd = 1e18;
+    for (const c of CC_POLYS) {
+      const b = c.b;
+      const dx0 = x < b[0] ? b[0] - x : x > b[2] ? x - b[2] : 0;
+      const dy0 = y < b[1] ? b[1] - y : y > b[3] ? y - b[3] : 0;
+      if ((dx0 * kx) ** 2 + dy0 ** 2 >= bd) continue; // bbox 하한으로 가지치기
+      for (const ring of c.p) {
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const ax = ring[i][0], ay = ring[i][1], bx = ring[j][0], by = ring[j][1];
+          const ex = bx - ax, ey = by - ay;
+          const L2 = ex * ex + ey * ey;
+          let t = L2 ? ((x - ax) * ex + (y - ay) * ey) / L2 : 0;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          const ddx = (x - (ax + t * ex)) * kx, ddy = y - (ay + t * ey);
+          const q = ddx * ddx + ddy * ddy;
+          if (q < bd) { bd = q; best = c.id; }
+        }
+      }
+    }
+    cc = best;
+    d._cc = cc;
+  }
+  return cc;
+}
+
 async function parseLocalFiles(fileList, onProgress) {
   if (typeof exifr === "undefined") throw new Error(T("exifrFail"));
   const files = [...fileList].filter(f => LOCAL_IMG.test(f.name) || LOCAL_VID.test(f.name));
