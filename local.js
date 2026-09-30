@@ -34,6 +34,7 @@ async function parseLocalFiles(fileList, onProgress) {
   LOCAL.order = [];
   const rp0 = (files[0]._relpath || files[0].webkitRelativePath || "").split("/").filter(Boolean);
   LOCAL.root = rp0.length > 1 ? rp0[0] : "";
+  if (onProgress) onProgress(0, files.length);
   const names = Object.keys(groups).sort();
   let done = 0;
   for (const name of names) {
@@ -41,10 +42,16 @@ async function parseLocalFiles(fileList, onProgress) {
     const items = [];
     let k = 0;
     for (const f of fl) {
-      items.push(await parseLocalFile(f, name, k++));
-      if (++done % 25 === 0 && onProgress) onProgress(done, files.length);
+      try {
+        items.push(await parseLocalFile(f, name, k++));
+      } catch (e) {
+        items.push({ id: "m" + String(k++).padStart(4, "0"), trip: name, file: f.name,
+          type: "photo", has_gps: false, lat: null, lon: null, datetime: null,
+          size: f.size, u: "", _handle: f._handle || null, broken: true });
+      }
+      if (++done % 5 === 0 && onProgress) onProgress(done, files.length);
     }
-    const tl = buildLocalTimeline(name, items);
+    const tl = buildLocalTimeline(name, items.filter(m => !m.broken));
     LOCAL.trips[name] = tl;
     LOCAL.order.push(name);
   }
@@ -126,22 +133,27 @@ function buildLocalTimeline(trip, items) {
 }
 
 // ---- 쓰기 허용 폴더 선택 (File System Access API, 폴백은 읽기 전용) ----
-async function pickLocalFolderFS() {
+async function pickLocalFolderFS(onCount) {
   const dir = await window.showDirectoryPicker({ mode: "readwrite" });
   let perm = "granted";
   try { perm = await dir.requestPermission({ mode: "readwrite" }); } catch (e) {}
   LOCAL.write = (perm === "granted");
   const files = [];
   async function walk(h, trail) {
-    for await (const [name, e] of h.entries()) {
-      if (e.kind === "file") {
-        const f = await e.getFile();
-        f._handle = e;
-        f._relpath = [dir.name, ...trail, name].join("/");
-        files.push(f);
-      } else if (e.kind === "directory") {
-        await walk(e, [...trail, name]);
-      }
+    let iter;
+    try { iter = h.entries(); } catch (e) { return; }
+    for await (const [name, e] of iter) {
+      try {
+        if (e.kind === "file") {
+          const f = await e.getFile();
+          f._handle = e;
+          f._relpath = [dir.name, ...trail, name].join("/");
+          files.push(f);
+          if (onCount && files.length % 25 === 0) onCount(files.length);
+        } else if (e.kind === "directory") {
+          await walk(e, [...trail, name]);
+        }
+      } catch (err) { /* 건너뜀 */ }
     }
   }
   await walk(dir, []);
