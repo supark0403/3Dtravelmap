@@ -778,7 +778,7 @@ function stop() {
 }
 
 // ---- 일차 시작 인터루드: 기상 + 가방싸기 (배속 무시 고정시간, 사진 정지) ----
-let playing = false, interludeTO = null, wakeInt = null, pendingInter = null;
+let playing = false, interludeTO = null, wakeTOs = [], pendingInter = null;
 const seenDays = new Set();
 const INTERLUDE_MS = 2400;
 function dayKey(i) { const d = shown[i]; return d ? (d.datetime || "").slice(0, 10) : ""; }
@@ -800,13 +800,11 @@ function interlude(iconIdx, target) {
   setMover([d.d_lon, d.d_lat], "bed");
   setMoverSize(1.35);
   $("mapstatus").textContent = T("interlude", { n: dayNum(target ?? iconIdx) });
-  const seq = ["bed", "sleep", "bed"];
-  let k = 0;
-  wakeInt = setInterval(() => {
-    k = Math.min(k + 1, seq.length - 1);
-    setMover(moverPos, seq[k]);
-    setMoverSize(k % 2 ? 1.0 : 1.35);
-  }, 800);
+  // 정확히 3단계: 침대(0~800) → 누운 사람(800~1600, 크게) → 침대(1600~2400)
+  wakeTOs = [
+    setTimeout(() => { setMover(moverPos, "sleep"); setMoverSize(1.6); }, 800),
+    setTimeout(() => { setMover(moverPos, "bed"); setMoverSize(1.35); }, 1600),
+  ];
   interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
 }
 function finishInterlude() {
@@ -818,7 +816,7 @@ function finishInterlude() {
 }
 function cancelInterlude() {
   if (interludeTO) { clearTimeout(interludeTO); interludeTO = null; }
-  if (wakeInt) { clearInterval(wakeInt); wakeInt = null; }
+  wakeTOs.forEach(t => clearTimeout(t)); wakeTOs = [];
   pendingInter = null;
   setMoverSize(1.0);
   if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
