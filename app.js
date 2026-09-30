@@ -83,7 +83,7 @@ function onBaseError(kind) {
   else $("mapstatus").textContent = T("mapFailAll");
 }
 
-const EMO_ICONS = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢" };
+const EMO_ICONS = { walk: "🚶" };
 function emoImage(emoji) {
   const c = document.createElement("canvas");
   c.width = c.height = 96;
@@ -101,19 +101,11 @@ function registerMoverIcons() {
   } catch (err) {}
 }
 
-// segment mode by speed between consecutive displayed items (ship = manual override only)
+// segment label (always walk; speed-based transport icons removed)
 function segMode(a, b) {
   if (!a || !b) return ["walk", T("segStay")];
   if (b.method === "manual") return ["walk", "📍 " + (b.at || T("segManualFallback"))];
   if (b._ts <= a._ts) return ["walk", T("segStay")];
-  const R = 6371, p1 = a.d_lat * Math.PI / 180, p2 = b.d_lat * Math.PI / 180;
-  const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(((b.d_lon - a.d_lon) * Math.PI / 180) / 2) ** 2;
-  const km = 2 * R * Math.asin(Math.sqrt(h));
-  const hrs = (b._ts - a._ts) / 3600;
-  const v = km / hrs;
-  if (b.transport === "ship" || a.transport === "ship") return ["ship", T("segShip")];
-  if (v > 250) return ["plane", T("segPlane")];
-  if (v > 12) return ["transit", T("segTransit")];
   return ["walk", T("segWalk")];
 }
 
