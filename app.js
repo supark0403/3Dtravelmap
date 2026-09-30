@@ -545,11 +545,13 @@ function enterTrip(tl, label) {
 
 function renderAll(startIdx) {
   renderTripLayers();
+  $("play").disabled = shown.length < 2;
   if (!shown.length) { $("mapstatus").textContent = T("emptyTrip"); return; }
   const m = TL.meta;
   const c = { gps: 0, held: 0, held_next: 0, manual: 0 };
   shown.forEach(d => { if (c[d.method] !== undefined) c[d.method]++; });
-  $("stats").textContent = T("stats", { total: m.total, gps: c.gps, held: c.held + c.held_next, manual: c.manual, start: m.start, end: m.end });
+  const u = TL.items.filter(d => d.method === "unplaced" || d.method === "no_datetime").length;
+  $("stats").textContent = T("stats", { total: m.total, gps: c.gps, held: c.held + c.held_next, manual: c.manual, u, start: m.start, end: m.end });
   $("scrub").max = shown.length - 1;
   go(Math.max(0, Math.min(startIdx, shown.length - 1)));
 }
@@ -820,6 +822,7 @@ function frameCurrent() {
 
 function toggle() {
   if (playing) { stop(); return; }
+  if (shown.length < 2) return;
   playing = true;
   $("play").textContent = T("pause");
   startTimer();
