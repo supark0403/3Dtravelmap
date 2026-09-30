@@ -334,26 +334,27 @@ async function main() {
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
     finally { clearInterval(watcher); }
   }
-  $("inspectPick").onchange = async e => {
-    const f = e.target.files && e.target.files[0];
+  // 모바일용 사진 고르기: 구글 포토 경로(accept=image/*)로 GPS 유지
+  try {
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "")) $("mPhotoBtn").style.display = "";
+  } catch (e) {}
+  $("mPhotoBtn").onclick = () => $("mPhotoPick").click();
+  $("mPhotoPick").onchange = async e => {
+    const files = [...e.target.files];
     e.target.value = "";
-    const box = $("inspectRes");
-    if (!f) return;
-    box.textContent = T("reading", { a: 1, b: 1 });
-    const r = await inspectFile(f);
-    const mb = (r.size / 1048576).toFixed(1) + "MB";
-    const verdict = r.gps ? T("okFile") : (r.exif ? T("timeOnlyFile") : T("noExifFile"));
-    box.innerHTML = `${T("infoFile")}: ${r.name} (${mb})<br>EXIF: ${r.exif ? T("hasIt") : T("none")}<br>GPS: ${(r.gps ? r.lat.toFixed(5) + ", " + r.lon.toFixed(5) : T("none"))}<br>${T("infoTime")}: ${r.datetime || T("none")}<br>→ ${verdict}`;
+    if (!files || !files.length) return;
+    LOCAL.write = false;
+    loadLocalFiles(files);
   };
   $("filePick").onchange = async e => {
-    const files = e.target.files;
+    const files = [...e.target.files];
     e.target.value = "";
     if (!files || !files.length) return;
     LOCAL.write = false;
     loadLocalFiles(files);
   };
   $("localPick").onchange = async e => {
-    const files = e.target.files;
+    const files = [...e.target.files];
     e.target.value = "";
     if (!files || !files.length) return;
     LOCAL.write = false;
