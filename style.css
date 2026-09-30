@@ -17,7 +17,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #hero{background:rgba(0,0,0,.55);border-radius:10px;padding:14px 18px;margin:4px 0 12px;text-align:center}
 #hero h1{font-size:19px;margin:0 0 8px}
 #hero p{font-size:13px;line-height:1.7;margin:6px 0;opacity:.92}
-#seoKw{font-size:11px;opacity:.35;margin-top:10px;line-height:1.8;word-break:keep-all}
+#seoKw{font-size:11px;color:#0a0e14;margin-top:10px;line-height:1.8;word-break:keep-all;user-select:none}
 .heic{background:#1d2733;border-radius:6px;padding:24px 12px;text-align:center;font-size:13px}
 .heic a{color:#8fdc92}
 .tcard{display:flex;gap:6px;align-items:stretch}
@@ -58,6 +58,8 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 .mrule span{flex:1}
 #daybadge{position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:700;border-radius:8px;padding:6px 16px;z-index:5}
 #daybadge.hidden{display:none}
+#daybadge.glow{animation:dayglow 2s ease-in-out 1;color:#fff;text-shadow:0 0 12px #ffd54f,0 0 28px #ff9800,0 0 44px #ff9800}
+@keyframes dayglow{0%{text-shadow:0 0 2px #fff}30%{text-shadow:0 0 18px #ffd54f,0 0 42px #ff9800}100%{text-shadow:0 0 2px #fff}}
 #panel.min{width:max-content;min-width:0;min-height:0;padding:8px 10px}
 #panel.min #media,#panel.min #info{display:none}
 .dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer}
