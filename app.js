@@ -115,8 +115,19 @@ function dotColor(d) {
   return d.method === "held_next" ? "#ab47bc" : "#29b6f6";
 }
 
+let tripRenderTries = 0;
 function renderTripLayers() {
-  if (!mapReady || !map.isStyleLoaded()) return;
+  if (!mapReady || !map.isStyleLoaded()) {
+    // 스타일 로드 전이면 버리지 말고 재시도 (느린 네트워크 대비)
+    if (TL && shown.length && tripRenderTries < 30) {
+      tripRenderTries++;
+      setTimeout(() => { if (TL && shown.length) renderTripLayers(); }, 1000);
+    } else if (TL && shown.length) {
+      $("mapstatus").textContent = "지도 스타일 로드 실패 — 새로고침 해주세요";
+    }
+    return;
+  }
+  tripRenderTries = 0;
   for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-mover", "tm-days"]) if (map.getLayer(l)) map.removeLayer(l);
   for (const s of ["tm-route-src", "tm-photos-src", "tm-sel-src", "tm-mover-src", "tm-days-src"]) if (map.getSource(s)) map.removeSource(s);
   // 날짜별 그룹 (shown은 시간순)
@@ -363,6 +374,7 @@ function enterTrip(tl, label) {
   stop();
   seenDays.clear();
   shownDay = null;
+  tripRenderTries = 0;
   TL = tl;
   TL.items.forEach(d => { if (d._ts === undefined) d._ts = d.datetime ? (Date.parse(d.datetime.replace(" ", "T")) || 0) : 0; });
   loadManual();
@@ -675,6 +687,7 @@ function dayNum(i) {
 }
 function interlude(i, advance) {
   cancelInterlude();
+  if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; } // 잔류 활공 취소
   if (timer) { clearInterval(timer); timer = null; } // 사진 넘김 정지 (재생 상태 유지)
   seenDays.add(dayKey(i));
   pendingInter = { i, advance };
