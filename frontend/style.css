@@ -14,9 +14,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #langSel{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 6px}
 #localPick{position:fixed;opacity:0;width:1px;height:1px;pointer-events:none}
 #filePick{position:fixed;opacity:0;width:1px;height:1px;pointer-events:none}
-#inspectPick{font-size:12px}
-#inspect{margin-top:10px;font-size:12px}
-#inspectRes{margin-top:6px;line-height:1.7;word-break:break-all;opacity:.9}
+#mPhotoPick{position:fixed;opacity:0;width:1px;height:1px;pointer-events:none}
 input[type=file].hidden{position:fixed;opacity:0;width:1px;height:1px;pointer-events:none;display:block}
 #foot{margin-top:10px;text-align:center;font-size:12px}
 #foot a{color:#8ab4f8}

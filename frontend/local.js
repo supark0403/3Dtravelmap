@@ -111,23 +111,6 @@ async function idbPutMany(db, rows) {
   });
 }
 
-async function inspectFile(f) {
-  const r = { name: f.name, size: f.size, exif: false, gps: false,
-    lat: null, lon: null, datetime: null };
-  try {
-    const ex = await exifr.parse(f, { tiff: true, exif: true, gps: true });
-    if (ex && Object.keys(ex).length) {
-      r.exif = true;
-      const dt = ex.DateTimeOriginal || ex.CreateDate || ex.ModifyDate;
-      if (dt instanceof Date && !isNaN(dt)) r.datetime = localFmtDT(dt);
-      if (typeof ex.latitude === "number" && typeof ex.longitude === "number") {
-        r.gps = true; r.lat = ex.latitude; r.lon = ex.longitude;
-      }
-    }
-  } catch (e) {}
-  return r;
-}
-
 async function parseLocalFile(f, trip, id, cache) {
   const m = { id, trip, file: f.name,
     type: LOCAL_VID.test(f.name) ? "video" : "photo",
