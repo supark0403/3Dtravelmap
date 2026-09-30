@@ -6,7 +6,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #topbar button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
 #topbar button.on{border-color:#4caf50;color:#8fdc92}
 #tripname{font-weight:700}#mapstatus{font-size:11px;opacity:.7}.spacer{flex:1}
-#trips{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(10,14,20,.92);color:#fff;border-radius:12px;padding:20px 24px;z-index:6;min-width:320px;max-width:90vw}
+#trips{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,14,20,.92);color:#fff;border-radius:12px;padding:20px 24px;z-index:6;width:min(92vw,640px);max-height:88vh;overflow:auto}
 #trips.hidden{display:none}#triplist{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto}
 #trips .trow{display:flex;align-items:center;gap:8px}#trips .trow h2{margin:0 0 8px}
 #trips .trow button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
@@ -17,7 +17,7 @@ html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Got
 #hero{background:rgba(0,0,0,.55);border-radius:10px;padding:14px 18px;margin:4px 0 12px;text-align:center}
 #hero h1{font-size:19px;margin:0 0 8px}
 #hero p{font-size:13px;line-height:1.7;margin:6px 0;opacity:.92}
-#seoKw{font-size:11px;color:#0a0e14;margin-top:10px;line-height:1.8;word-break:keep-all;user-select:none}
+#seoKw{font-size:11px;color:transparent !important;margin-top:10px;line-height:1.8;word-break:keep-all;user-select:none}
 .heic{background:#1d2733;border-radius:6px;padding:24px 12px;text-align:center;font-size:13px}
 .heic a{color:#8fdc92}
 .tcard{display:flex;gap:6px;align-items:stretch}
