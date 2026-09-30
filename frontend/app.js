@@ -189,13 +189,21 @@ function renderTripLayers() {
   map.addLayer({ id: "tm-mover", type: "symbol", source: "tm-mover-src",
     layout: { "icon-image": ["get", "icon"], "icon-size": 1,
       "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-offset": [0, -14] } });
-  // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨 (1일차=공항, 이후=숙소)
+  // 숙소 라벨: 첫날은 첫 사진에 공항, 이후 일차는 전날 마지막 사진에 숙소
+  const dayFeats = [];
+  groups.forEach((g, n) => {
+    if (n === 0) {
+      const f = g[0];
+      dayFeats.push({ type: "Feature", geometry: { type: "Point", coordinates: [f.d.d_lon, f.d.d_lat] },
+        properties: { i: f.i, label: "공항" } });
+    } else {
+      const prev = groups[n - 1], last = prev[prev.length - 1];
+      dayFeats.push({ type: "Feature", geometry: { type: "Point", coordinates: [last.d.d_lon, last.d.d_lat] },
+        properties: { i: last.i, label: "숙소" } });
+    }
+  });
   map.addSource("tm-days-src", { type: "geojson",
-    data: { type: "FeatureCollection", features: groups.map((g, n) => {
-      const first = g[0];
-      return { type: "Feature", geometry: { type: "Point", coordinates: [first.d.d_lon, first.d.d_lat] },
-        properties: { i: first.i, label: n === 0 ? "공항" : "숙소" } };
-    }) } });
+    data: { type: "FeatureCollection", features: dayFeats } });
   map.addLayer({ id: "tm-days", type: "symbol", source: "tm-days-src",
     layout: { "text-field": ["get", "label"], "text-size": 14, "text-offset": [0, -1.6],
       "text-allow-overlap": true, "text-font": ["Noto Sans Bold"] },
@@ -654,7 +662,7 @@ function toggle() {
   if (playing) { stop(); return; }
   playing = true;
   $("play").textContent = "⏸ 정지";
-  if (isDayStart(idx) && !seenDays.has(dayKey(idx))) interlude(idx, false);
+  if (isDayStart(idx) && !seenDays.has(dayKey(idx))) interlude(idx > 0 ? idx - 1 : idx, idx > 0 ? idx : null);
   else startTimer();
 }
 function startTimer() {
@@ -664,7 +672,7 @@ function startTimer() {
 function stepOnce() {
   if (idx >= shown.length - 1) { stop(); return; }
   const next = idx + 1;
-  if (isDayStart(next) && !seenDays.has(dayKey(next))) { interlude(next, true); return; }
+  if (isDayStart(next) && !seenDays.has(dayKey(next))) { interlude(idx, next); return; }
   go(next);
 }
 function stop() {
@@ -685,17 +693,18 @@ function dayNum(i) {
   for (let k = 0; k <= i && k < shown.length; k++) s.add(dayKey(k));
   return s.size;
 }
-function interlude(i, advance) {
+function interlude(iconIdx, target) {
   cancelInterlude();
   if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; } // 잔류 활공 취소
   if (timer) { clearInterval(timer); timer = null; } // 사진 넘김 정지 (재생 상태 유지)
-  seenDays.add(dayKey(i));
-  pendingInter = { i, advance };
-  // 점 위 아이콘만 침대 → 배낭 → 원래 이동 아이콘 순으로 (고정 시간, 배속 무시)
-  const d = shown[i];
+  const key = dayKey(target ?? iconIdx);
+  seenDays.add(key);
+  pendingInter = { target };
+  // 전날 마지막 사진(숙소 자리)에서 침대 → 누운 사람 → 침대 순으로 (고정 시간, 배속 무시)
+  const d = shown[iconIdx];
   setMover([d.d_lon, d.d_lat], "bed");
   setMoverSize(1.35);
-  $("mapstatus").textContent = dayNum(i) + "일차 시작 — 기상 + 짐싸기";
+  $("mapstatus").textContent = dayNum(target ?? iconIdx) + "일차 시작 — 기상 + 짐싸기";
   const seq = ["bed", "sleep", "bed"];
   let k = 0;
   wakeInt = setInterval(() => {
@@ -709,7 +718,7 @@ function finishInterlude() {
   const p = pendingInter; pendingInter = null;
   cancelInterlude();
   if (!playing) return;
-  if (p && p.advance) go(p.i);
+  if (p && p.target != null) go(p.target);
   startTimer();
 }
 function cancelInterlude() {
