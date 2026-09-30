@@ -16,9 +16,9 @@ function localHavKm(a, b, c, d) {
 }
 
 async function parseLocalFiles(fileList, onProgress) {
-  if (typeof exifr === "undefined") throw new Error("exifr 로드 실패(네트워크 확인)");
+  if (typeof exifr === "undefined") throw new Error(T("exifrFail"));
   const files = [...fileList].filter(f => LOCAL_IMG.test(f.name) || LOCAL_VID.test(f.name));
-  if (!files.length) throw new Error("사진/영상이 없음");
+  if (!files.length) throw new Error(T("noPhotos"));
   const groups = {};
   for (const f of files) {
     const parts = (f._relpath || f.webkitRelativePath || f.name).split("/");
@@ -149,7 +149,7 @@ function degToDms(v) {
   return [[d, 1], [m, 1], [Math.round(s * 100), 100]];
 }
 function buildGpsJpeg(buf, lat, lon) {
-  if (typeof piexif === "undefined") throw new Error("piexif 로드 실패");
+  if (typeof piexif === "undefined") throw new Error(T("wPiexif"));
   const bytes = new Uint8Array(buf);
   let bin = "";
   const CH = 0x8000;
@@ -177,6 +177,6 @@ async function writeGpsExif(handle, lat, lon) {
   const vf = await handle.getFile();
   const ex = await exifr.parse(vf, { gps: true }).catch(() => null);
   if (!ex || Math.abs((ex.latitude ?? 9999) - lat) > 0.0002 || Math.abs((ex.longitude ?? 9999) - lon) > 0.0002) {
-    throw new Error("검증 실패");
+    throw new Error(T("wVerify"));
   }
 }

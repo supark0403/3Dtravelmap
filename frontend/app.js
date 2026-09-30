@@ -8,7 +8,9 @@ const LIBERTY = "https://tiles.openfreemap.org/styles/liberty";
 const OFM_VECTOR = "https://tiles.openfreemap.org/planet";
 const DEM_TILES = ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"];
 const ESRI_SAT = ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
-const MAP_LABEL = { street: "일반+3D건물", sat: "위성+3D건물", terrain: "지형(고도×2)" };
+function mapLabel(kind) {
+  return { street: T("mapStreet"), sat: T("mapSat"), terrain: T("mapTerrain") }[kind] || kind;
+}
 const MAP_ORDER = ["street", "sat", "terrain"];
 
 const BUILD3D = (src) => ({
@@ -63,15 +65,15 @@ function setBase(kind) {
   document.querySelectorAll(".mapbtn").forEach(b => { if (b.dataset.map !== "bld") b.classList.toggle("on", b.dataset.map === kind); });
   try {
     map.setStyle(styleFor(kind));
-    $("mapstatus").textContent = "지도: " + MAP_LABEL[kind];
+    $("mapstatus").textContent = T("mapIs", { x: mapLabel(kind) });
   } catch (e) { onBaseError(kind); }
 }
 function onBaseError(kind) {
   if (baseFailed[kind]) return;
   baseFailed[kind] = true;
   const next = MAP_ORDER.find(k => !baseFailed[k]);
-  if (next) { $("mapstatus").textContent = `지도 실패 → ${MAP_LABEL[next]}로 전환`; setBase(next); }
-  else $("mapstatus").textContent = "지도 로드 실패 (네트워크 확인 필요)";
+  if (next) { $("mapstatus").textContent = T("mapFailOver", { x: mapLabel(next) }); setBase(next); }
+  else $("mapstatus").textContent = T("mapFailAll");
 }
 
 const EMO_ICONS = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢", bed: "🛏️", sleep: "🛌" };
@@ -94,18 +96,18 @@ function registerMoverIcons() {
 
 // segment mode by speed between consecutive displayed items (ship = manual override only)
 function segMode(a, b) {
-  if (!a || !b) return ["walk", "🚶 체류"];
-  if (b.method === "manual") return ["walk", "📍 " + (b.at || "직접지정")];
-  if (b._ts <= a._ts) return ["walk", "🚶 체류"];
+  if (!a || !b) return ["walk", T("segStay")];
+  if (b.method === "manual") return ["walk", "📍 " + (b.at || T("segManualFallback"))];
+  if (b._ts <= a._ts) return ["walk", T("segStay")];
   const R = 6371, p1 = a.d_lat * Math.PI / 180, p2 = b.d_lat * Math.PI / 180;
   const h = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(((b.d_lon - a.d_lon) * Math.PI / 180) / 2) ** 2;
   const km = 2 * R * Math.asin(Math.sqrt(h));
   const hrs = (b._ts - a._ts) / 3600;
   const v = km / hrs;
-  if (b.transport === "ship" || a.transport === "ship") return ["ship", "🚢 배"];
-  if (v > 250) return ["plane", "✈️ 비행기"];
-  if (v > 12) return ["transit", "🚇 탈것"];
-  return ["walk", "🚶 도보/체류"];
+  if (b.transport === "ship" || a.transport === "ship") return ["ship", T("segShip")];
+  if (v > 250) return ["plane", T("segPlane")];
+  if (v > 12) return ["transit", T("segTransit")];
+  return ["walk", T("segWalk")];
 }
 
 function dotColor(d) {
@@ -123,7 +125,7 @@ function renderTripLayers() {
       tripRenderTries++;
       setTimeout(() => { if (TL && shown.length) renderTripLayers(); }, 1000);
     } else if (TL && shown.length) {
-      $("mapstatus").textContent = "지도 스타일 로드 실패 — 새로고침 해주세요";
+      $("mapstatus").textContent = T("styleFail");
     }
     return;
   }
@@ -195,11 +197,11 @@ function renderTripLayers() {
     if (n === 0) {
       const f = g[0];
       dayFeats.push({ type: "Feature", geometry: { type: "Point", coordinates: [f.d.d_lon, f.d.d_lat] },
-        properties: { i: f.i, label: "공항" } });
+        properties: { i: f.i, label: T("airport") } });
     } else {
       const prev = groups[n - 1], last = prev[prev.length - 1];
       dayFeats.push({ type: "Feature", geometry: { type: "Point", coordinates: [last.d.d_lon, last.d.d_lat] },
-        properties: { i: last.i, label: "숙소" } });
+        properties: { i: last.i, label: T("stay") } });
     }
   });
   map.addSource("tm-days-src", { type: "geojson",
@@ -218,7 +220,7 @@ async function main() {
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
   map.on("load", () => { mapReady = true; setup3D(); });
   map.on("style.load", () => setup3D());
-  map.on("error", () => { $("mapstatus").textContent = "지도 타일 오류 — 네트워크 확인"; });
+  map.on("error", () => { $("mapstatus").textContent = T("mapTileErr"); });
   map.on("click", e => {
     const fs = map.queryRenderedFeatures(e.point, { layers: ["tm-days", "tm-photos", "tm-mover"] });
     const f = fs && fs[0];
@@ -234,9 +236,12 @@ async function main() {
     if (b.dataset.map === "bld") { buildingsOn = !buildingsOn; applyBuildings(); return; }
     baseFailed = {}; setBase(b.dataset.map);
   });
-  $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
+  $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
 
   $("home").onclick = showHome;
+  const langSel = $("langSel");
+  if (langSel) { langSel.value = LANG; langSel.onchange = e => setLang(e.target.value); }
+  setLang(LANG);
   $("localOpen").onclick = async () => {
     if (window.showDirectoryPicker) {
       try {
@@ -244,17 +249,17 @@ async function main() {
         if (files && files.length) { loadLocalFiles(files); return; }
         return;
       } catch (e) {
-        if (e && e.name === "AbortError") return; // 취소
-        $("tripNote").textContent = "폴더 열기 실패, 읽기 전용으로 시도: " + (e.message || e);
+        if (e && e.name === "AbortError") return; // cancel /取消
+        $("tripNote").textContent = T("openFailRo") + (e.message || e);
       }
     }
     $("localPick").click();
   };
   async function loadLocalFiles(files) {
     try {
-      await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = `읽는 중 ${a}/${b}...`; });
+      await parseLocalFiles(files, (a, b) => { $("tripNote").textContent = T("reading", { a, b }); });
       showHome();
-    } catch (err) { $("tripNote").textContent = "읽기 실패: " + err.message; }
+    } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
   }
   $("localPick").onchange = async e => {
     const files = e.target.files;
@@ -304,10 +309,10 @@ async function main() {
     rd.onload = () => {
       try {
         const list = JSON.parse(rd.result);
-        if (!Array.isArray(list)) throw new Error("배열 아님");
+        if (!Array.isArray(list)) throw new Error(T("notArray"));
         MANUAL[TL.trip] = list;
         saveManual(); renderRules(); applyManual(); renderAll(idx);
-      } catch (err) { $("mapstatus").textContent = "가져오기 실패: " + err; }
+      } catch (err) { $("mapstatus").textContent = T("importFail") + err; }
     };
     rd.readAsText(f);
     e.target.value = "";
@@ -391,7 +396,7 @@ async function showHome() {
   try { map.jumpTo({ center: [127.8, 36.3], zoom: 6.2, pitch: 0 }); } catch (e) {}
   $("triplist").innerHTML = "";
   if (!LOCAL.order.length) {
-    $("triplist").innerHTML = "<small>📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)</small>";
+    $("triplist").innerHTML = `<small>${T("noTrips")}</small>`;
     return;
   }
   // 여행 시작일 순 정렬 (오래된 것 위로, 날짜 없음은 아래로)
@@ -402,7 +407,7 @@ async function showHome() {
     row.className = "tcard";
     const b = document.createElement("button");
     b.className = "tripcard";
-    b.innerHTML = `📂 ${n} (내 폴더)<br><small>${m.total}장 · GPS ${m.gps} · ${m.route_km}km · ${m.start || "?"} ~ ${m.end || "?"}</small>`;
+    b.innerHTML = `📂 ${n} ${T("localTag")}<br><small>${m.total}${T("photoUnit")} · GPS ${m.gps} · ${m.route_km}km · ${m.start || "?"} ~ ${m.end || "?"}</small>`;
     b.onclick = () => openLocalTrip(n);
     row.appendChild(b);
     $("triplist").appendChild(row);
@@ -410,7 +415,7 @@ async function showHome() {
 }
 
 function openLocalTrip(name) {
-  enterTrip(LOCAL.trips[name], "📂 " + name + " (내 폴더)");
+  enterTrip(LOCAL.trips[name], "📂 " + name + " " + T("localTag"));
 }
 
 function enterTrip(tl, label) {
@@ -429,7 +434,7 @@ function enterTrip(tl, label) {
   $("hud").classList.remove("hidden");
   $("tripname").textContent = label;
   $("daybadge").classList.remove("hidden");
-  $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
+  $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
   if (TL.meta.start) { $("mfrom").value = TL.meta.start.replace(" ", "T"); $("mto").value = TL.meta.end.replace(" ", "T"); }
   renderRules();
   snapMover = true; // 새 여행: 아이콘 점프 방지용 스냅
@@ -442,7 +447,7 @@ function renderAll(startIdx) {
   const m = TL.meta;
   const c = { gps: 0, held: 0, held_next: 0, manual: 0 };
   shown.forEach(d => { if (c[d.method] !== undefined) c[d.method]++; });
-  $("stats").textContent = `전체 ${m.total} · GPS ${c.gps} · 같은장소 ${c.held + c.held_next} · 직접 ${c.manual} · ${m.start} ~ ${m.end}`;
+  $("stats").textContent = T("stats", { total: m.total, gps: c.gps, held: c.held + c.held_next, manual: c.manual, start: m.start, end: m.end });
   $("scrub").max = shown.length - 1;
   go(Math.max(0, Math.min(startIdx, shown.length - 1)));
 }
@@ -540,11 +545,11 @@ function glideMover(to, durMs, icon) {
 async function mSearch() {
   const q = $("mq").value.trim();
   if (!q) return;
-  $("mresults").textContent = "검색 중...";
+  $("mresults").textContent = T("searching");
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=ko&q=${encodeURIComponent(q)}`);
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=${LANG}&q=${encodeURIComponent(q)}`);
     const list = await r.json();
-    if (!list.length) { $("mresults").textContent = "결과 없음"; return; }
+    if (!list.length) { $("mresults").textContent = T("noResult"); return; }
     $("mresults").innerHTML = "";
     list.forEach(p => {
       const b = document.createElement("button");
@@ -553,10 +558,10 @@ async function mSearch() {
       b.onclick = () => mPick(p);
       $("mresults").appendChild(b);
     });
-  } catch (e) { $("mresults").textContent = "검색 실패(네트워크): " + e; }
+  } catch (e) { $("mresults").textContent = T("searchFail") + e; }
 }
 function mPick(p) {
-  MPLACE = { name: (p.name || (p.display_name || "").split(",")[0] || "지정위치"), lat: +p.lat, lon: +p.lon, addr: p.display_name };
+  MPLACE = { name: (p.name || (p.display_name || "").split(",")[0] || T("placeFallback")), lat: +p.lat, lon: +p.lon, addr: p.display_name };
   $("mscope").classList.remove("hidden");
   $("mplace").innerHTML = `<b>${MPLACE.name}</b><br><small>${MPLACE.addr}</small>`;
   const cur = shown[idx];
@@ -573,13 +578,13 @@ function mApply() {
   if (mode === "current") {
     const cur = shown[idx];
     if (!cur) return;
-    if (cur.method === "gps") { $("mapstatus").textContent = "GPS 확정 사진은 지정할 필요 없음"; return; }
+    if (cur.method === "gps") { $("mapstatus").textContent = T("gpsNoNeed"); return; }
     nr = { mode, file: cur.file, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon };
   } else if (mode === "before") {
     nr = { mode, name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon };
   } else {
     const f = $("mfrom").value, t = $("mto").value;
-    if (!f || !t) { $("mapstatus").textContent = "시간 범위를 입력하세요"; return; }
+    if (!f || !t) { $("mapstatus").textContent = T("needRange"); return; }
     nr = { mode: "range", name: MPLACE.name, lat: MPLACE.lat, lon: MPLACE.lon, fromTs: Date.parse(f), toTs: Date.parse(t) };
   }
   rules.push(nr);
@@ -592,9 +597,9 @@ async function writeBackFor(rule) {
   const targets = shown.filter(d => d._rule === rule);
   const jpegs = targets.filter(d => /\.jpe?g$/i.test(d.file || "") && d._handle);
   const skip = targets.length - jpegs.length;
-  if (typeof piexif === "undefined") { box.textContent = "원본 기록 불가: piexif 로드 실패"; return; }
-  if (!LOCAL.write) { box.textContent = `원본 기록 불가: 쓰기 권한 없음(폴더를 다시 열어 허용) · ${targets.length}장 화면에만 적용`; return; }
-  if (!jpegs.length) { box.textContent = `원본 기록: JPEG 아님 ${skip}장 제외, 화면에만 적용`; return; }
+  if (typeof piexif === "undefined") { box.textContent = T("wNoPiexif"); return; }
+  if (!LOCAL.write) { box.textContent = T("wNoPerm", { n: targets.length }); return; }
+  if (!jpegs.length) { box.textContent = T("wNoJpeg", { n: skip }); return; }
   let ok = 0, fail = 0;
   for (const d of jpegs) {
     try {
@@ -603,24 +608,24 @@ async function writeBackFor(rule) {
       d._orig = { lat: rule.lat, lon: rule.lon, method: "gps", at: d.id };
       ok++;
     } catch (e) { fail++; }
-    box.textContent = `원본 기록 중 ${ok + fail}/${jpegs.length}...`;
+    box.textContent = T("wProg", { a: ok + fail, b: jpegs.length });
   }
   applyManual(); renderAll(idx);
-  box.textContent = `원본 기록 완료: 성공 ${ok}${fail ? `, 실패 ${fail}` : ""}${skip ? `, 제외 ${skip}` : ""} — GPS 앵커 승격`;
+  box.textContent = T("wDone", { ok, fail: fail ? T("wDoneFail", { n: fail }) : "", skip: skip ? T("wDoneSkip", { n: skip }) : "" });
 }
 function renderRules() {
   const box = $("mrules");
   const rules = (TL && MANUAL[TL.trip]) || [];
-  box.innerHTML = rules.length ? "" : "<small>없음</small>";
+  box.innerHTML = rules.length ? "" : `<small>${T("none")}</small>`;
   rules.forEach((r, i) => {
     const div = document.createElement("div");
     div.className = "mrule";
-    const scope = r.mode === "before" ? "첫 GPS 이전 전부"
-      : r.mode === "current" ? `사진 1장: ${r.file || ""}`
+    const scope = r.mode === "before" ? T("scopeBeforeList")
+      : r.mode === "current" ? T("photoOne") + (r.file || "")
       : `${new Date(r.fromTs).toLocaleString()} ~ ${new Date(r.toTs).toLocaleString()}`;
     div.innerHTML = `<span>📍 ${r.name}<br><small>${scope}</small></span>`;
     const del = document.createElement("button");
-    del.textContent = "삭제";
+    del.textContent = T("del");
     del.onclick = () => { rules.splice(i, 1); saveManual(); renderRules(); applyManual(); renderAll(idx); };
     div.appendChild(del);
     box.appendChild(div);
@@ -634,7 +639,7 @@ function applyFilter() {
 }
 
 function badge(d) {
-  const map = { gps: ["GPS확정", "gps"], held: ["같은장소", "held"], held_next: ["같은장소", "heldnext"], manual: ["직접지정", "man"] };
+  const map = { gps: [T("badgeGps"), "gps"], held: [T("badgeHeld"), "held"], held_next: [T("badgeHeld"), "heldnext"], manual: [T("badgeManual"), "man"] };
   const [t, c] = map[d.method] || [d.method, "bad"];
   return `<span class="badge ${c}">${t}</span>` + (d.type === "video" ? ' <span class="badge held">VIDEO</span>' : "");
 }
@@ -667,16 +672,16 @@ function go(i) {
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
   const dk = dayKey(idx);
-  if (dk !== shownDay) { shownDay = dk; $("daybadge").textContent = dayNum(idx) + "일차"; }
+  if (dk !== shownDay) { shownDay = dk; $("daybadge").textContent = T("day", { n: dayNum(idx) }); }
   const isHeic = /\.(heic|heif)$/i.test(d.file || "");
   if (d.type === "photo" && isHeic) {
-    $("media").innerHTML = `<div class="heic">HEIC 미리보기 미지원<br><small>${d.file}</small><br><a href="${d.u}" download="${d.file}">원본 다운로드</a></div>`;
+    $("media").innerHTML = `<div class="heic">${T("heic")}<br><small>${d.file}</small><br><a href="${d.u}" download="${d.file}">${T("heicDl")}</a></div>`;
   } else if (d.type === "video") {
     $("media").innerHTML = `<video controls src="${d.u}"></video>`;
   } else {
     $("media").innerHTML = `<img src="${d.u}" alt="">`;
   }
-  $("info").innerHTML = `${badge(d)}<br>시간: ${d.datetime}<br>이동: ${label}<br>배치: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>파일: ${d.file}`;
+  $("info").innerHTML = `${badge(d)}<br>${T("infoTime")}: ${d.datetime}<br>${T("infoMove")}: ${label}<br>${T("infoAt")}: ${d.at || "-"} @ ${d.d_lat.toFixed(5)}, ${d.d_lon.toFixed(5)}<br>${T("infoFile")}: ${d.file}`;
   $("panel").classList.remove("hidden");
   // 카메라는 glideMover 프레임에서 아이콘에 고정 (flyTo 없음 → 딜레이 없음)
   // 다음 썸네일 미리 로드 (패널 깜빡임 완화)
@@ -696,7 +701,7 @@ function frameCurrent() {
 function toggle() {
   if (playing) { stop(); return; }
   playing = true;
-  $("play").textContent = "⏸ 정지";
+  $("play").textContent = T("pause");
   if (isDayStart(idx) && !seenDays.has(dayKey(idx))) interlude(idx > 0 ? idx - 1 : idx, idx > 0 ? idx : null);
   else startTimer();
 }
@@ -714,7 +719,7 @@ function stop() {
   playing = false;
   if (timer) { clearInterval(timer); timer = null; }
   cancelInterlude();
-  const p = $("play"); if (p) p.textContent = "▶ 재생";
+  const p = $("play"); if (p) p.textContent = T("play");
 }
 
 // ---- 일차 시작 인터루드: 기상 + 가방싸기 (배속 무시 고정시간, 사진 정지) ----
@@ -739,7 +744,7 @@ function interlude(iconIdx, target) {
   const d = shown[iconIdx];
   setMover([d.d_lon, d.d_lat], "bed");
   setMoverSize(1.35);
-  $("mapstatus").textContent = dayNum(target ?? iconIdx) + "일차 시작 — 기상 + 짐싸기";
+  $("mapstatus").textContent = T("interlude", { n: dayNum(target ?? iconIdx) });
   const seq = ["bed", "sleep", "bed"];
   let k = 0;
   wakeInt = setInterval(() => {
@@ -761,7 +766,7 @@ function cancelInterlude() {
   if (wakeInt) { clearInterval(wakeInt); wakeInt = null; }
   pendingInter = null;
   setMoverSize(1.0);
-  if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = "지도: " + MAP_LABEL[baseKind];
+  if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
 }
 // 수동 이동: 인터루드 취소 후 이동, 재생 중이면 타이머 복구
 function nav(i) {
@@ -770,4 +775,4 @@ function nav(i) {
   if (playing && !timer) startTimer();
 }
 
-main().catch(e => { const t = $("triplist"); if (t) t.innerHTML = "초기화 실패: " + e; const m = $("mapstatus"); if (m) m.textContent = "초기화 실패: " + e; });
+main().catch(e => { const t = $("triplist"); if (t) t.innerHTML = T("initFail") + e; const m = $("mapstatus"); if (m) m.textContent = T("initFail") + e; });
