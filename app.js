@@ -285,19 +285,6 @@ async function main() {
       showHome();
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
   }
-  const canDir = !!window.showDirectoryPicker;
-  let canDirAttr = false;
-  try { canDirAttr = "webkitdirectory" in document.createElement("input"); } catch (e) {}
-  if (!canDir) $("fileBtn").classList.remove("hidden");
-  if (!canDir && !canDirAttr) $("localOpen").classList.add("hidden"); // 모바일: 파일 선택만
-  $("fileBtn").onclick = () => $("filePick").click();
-  $("filePick").onchange = async e => {
-    const files = e.target.files;
-    e.target.value = "";
-    if (!files || !files.length) return;
-    LOCAL.write = false;
-    loadLocalFiles(files);
-  };
   $("localPick").onchange = async e => {
     const files = e.target.files;
     e.target.value = "";

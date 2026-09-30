@@ -5,7 +5,7 @@ const STR = {
   ko: {
     home: "⌂ 홈", homeTitle: "여행 목록",
     mapStreet: "🗺 일반", mapSat: "🛰 위성", mapTerrain: "⛰ 지형", mapBld: "🏢 3D",
-    tripsTitle: "여행 선택", localOpen: "📂 내 폴더 열기", filePick: "📷 사진 고르기", pickedTrip: "선택한 사진",
+    tripsTitle: "여행 선택", localOpen: "📂 내 폴더 열기", pickedTrip: "선택한 사진",
     noTrips: "📂 내 폴더 열기로 로컬 travel 폴더를 지정하세요 (사진은 브라우저에서만 읽고 업로드되지 않음)",
     play: "▶ 재생", pause: "⏸ 정지", first: "⏮ 처음", firstTitle: "첫 사진 위치로",
     normal: "정배속", manualBtn: "📍 위치지정", manualBtnTitle: "GPS 없는 구간 위치 직접 지정",
@@ -49,7 +49,7 @@ const STR = {
   en: {
     home: "⌂ Home", homeTitle: "Trip list",
     mapStreet: "🗺 Streets", mapSat: "🛰 Satellite", mapTerrain: "⛰ Terrain", mapBld: "🏢 3D",
-    tripsTitle: "Select trip", localOpen: "📂 Open folder", filePick: "📷 Pick photos", pickedTrip: "Selected photos",
+    tripsTitle: "Select trip", localOpen: "📂 Open folder", pickedTrip: "Selected photos",
     noTrips: "📂 Open a local travel folder (photos stay in your browser, nothing is uploaded)",
     play: "▶ Play", pause: "⏸ Pause", first: "⏮ Start", firstTitle: "Go to first photo",
     normal: "1x", manualBtn: "📍 Set location", manualBtnTitle: "Manually set location for no-GPS section",
@@ -93,7 +93,7 @@ const STR = {
   ja: {
     home: "⌂ ホーム", homeTitle: "旅行リスト",
     mapStreet: "🗺 一般", mapSat: "🛰 衛星", mapTerrain: "⛰ 地形", mapBld: "🏢 3D",
-    tripsTitle: "旅行選択", localOpen: "📂 フォルダを開く", filePick: "📷 写真を選ぶ", pickedTrip: "選択した写真",
+    tripsTitle: "旅行選択", localOpen: "📂 フォルダを開く", pickedTrip: "選択した写真",
     noTrips: "📂 ローカルのtravelフォルダを指定してください（写真はブラウザ内のみ、アップロードなし）",
     play: "▶ 再生", pause: "⏸ 停止", first: "⏮ 最初", firstTitle: "最初の写真へ",
     normal: "等倍", manualBtn: "📍 位置指定", manualBtnTitle: "GPSのない区間を手動で指定",
@@ -137,7 +137,7 @@ const STR = {
   zh: {
     home: "⌂ 首页", homeTitle: "旅行列表",
     mapStreet: "🗺 普通", mapSat: "🛰 卫星", mapTerrain: "⛰ 地形", mapBld: "🏢 3D",
-    tripsTitle: "选择旅行", localOpen: "📂 打开文件夹", filePick: "📷 选择照片", pickedTrip: "所选照片",
+    tripsTitle: "选择旅行", localOpen: "📂 打开文件夹", pickedTrip: "所选照片",
     noTrips: "📂 指定本地 travel 文件夹（照片仅在浏览器中读取，不上传）",
     play: "▶ 播放", pause: "⏸ 暂停", first: "⏮ 开头", firstTitle: "回到第一张照片",
     normal: "正常速度", manualBtn: "📍 指定位置", manualBtnTitle: "手动指定无GPS区段的位置",
@@ -181,7 +181,7 @@ const STR = {
   es: {
     home: "⌂ Inicio", homeTitle: "Lista de viajes",
     mapStreet: "🗺 Callejero", mapSat: "🛰 Satélite", mapTerrain: "⛰ Relieve", mapBld: "🏢 3D",
-    tripsTitle: "Elegir viaje", localOpen: "📂 Abrir carpeta", filePick: "📷 Elegir fotos", pickedTrip: "Fotos elegidas",
+    tripsTitle: "Elegir viaje", localOpen: "📂 Abrir carpeta", pickedTrip: "Fotos elegidas",
     noTrips: "📂 Elige una carpeta travel local (las fotos solo se leen en tu navegador, no se suben)",
     play: "▶ Reproducir", pause: "⏸ Pausar", first: "⏮ Inicio", firstTitle: "Ir a la primera foto",
     normal: "1x", manualBtn: "📍 Fijar lugar", manualBtnTitle: "Fijar manualmente un tramo sin GPS",
@@ -225,7 +225,7 @@ const STR = {
   fr: {
     home: "⌂ Accueil", homeTitle: "Liste des voyages",
     mapStreet: "🗺 Plan", mapSat: "🛰 Satellite", mapTerrain: "⛰ Relief", mapBld: "🏢 3D",
-    tripsTitle: "Choisir un voyage", localOpen: "📂 Ouvrir un dossier", filePick: "📷 Choisir photos", pickedTrip: "Photos choisies",
+    tripsTitle: "Choisir un voyage", localOpen: "📂 Ouvrir un dossier", pickedTrip: "Photos choisies",
     noTrips: "📂 Choisissez un dossier travel local (photos lues dans le navigateur, rien n'est envoyé)",
     play: "▶ Lecture", pause: "⏸ Pause", first: "⏮ Début", firstTitle: "Aller à la première photo",
     normal: "1x", manualBtn: "📍 Fixer un lieu", manualBtnTitle: "Fixer manuellement un tronçon sans GPS",
@@ -269,7 +269,7 @@ const STR = {
   de: {
     home: "⌂ Start", homeTitle: "Reiseliste",
     mapStreet: "🗺 Karte", mapSat: "🛰 Satellit", mapTerrain: "⛰ Gelände", mapBld: "🏢 3D",
-    tripsTitle: "Reise wählen", localOpen: "📂 Ordner öffnen", filePick: "📷 Fotos wählen", pickedTrip: "Gewählte Fotos",
+    tripsTitle: "Reise wählen", localOpen: "📂 Ordner öffnen", pickedTrip: "Gewählte Fotos",
     noTrips: "📂 Lokalen travel-Ordner wählen (Fotos bleiben im Browser, kein Upload)",
     play: "▶ Abspielen", pause: "⏸ Pause", first: "⏮ Anfang", firstTitle: "Zum ersten Foto",
     normal: "1x", manualBtn: "📍 Ort setzen", manualBtnTitle: "Abschnitt ohne GPS manuell setzen",
@@ -313,7 +313,7 @@ const STR = {
   pt: {
     home: "⌂ Início", homeTitle: "Lista de viagens",
     mapStreet: "🗺 Mapa", mapSat: "🛰 Satélite", mapTerrain: "⛰ Relevo", mapBld: "🏢 3D",
-    tripsTitle: "Escolher viagem", localOpen: "📂 Abrir pasta", filePick: "📷 Escolher fotos", pickedTrip: "Fotos escolhidas",
+    tripsTitle: "Escolher viagem", localOpen: "📂 Abrir pasta", pickedTrip: "Fotos escolhidas",
     noTrips: "📂 Escolha uma pasta travel local (fotos lidas no navegador, sem upload)",
     play: "▶ Tocar", pause: "⏸ Pausar", first: "⏮ Início", firstTitle: "Ir à primeira foto",
     normal: "1x", manualBtn: "📍 Fixar local", manualBtnTitle: "Fixar manualmente trecho sem GPS",
@@ -357,7 +357,7 @@ const STR = {
   it: {
     home: "⌂ Home", homeTitle: "Lista viaggi",
     mapStreet: "🗺 Mappa", mapSat: "🛰 Satellite", mapTerrain: "⛰ Rilievi", mapBld: "🏢 3D",
-    tripsTitle: "Scegli viaggio", localOpen: "📂 Apri cartella", filePick: "📷 Scegli foto", pickedTrip: "Foto scelte",
+    tripsTitle: "Scegli viaggio", localOpen: "📂 Apri cartella", pickedTrip: "Foto scelte",
     noTrips: "📂 Scegli una cartella travel locale (foto lette nel browser, nessun upload)",
     play: "▶ Play", pause: "⏸ Pausa", first: "⏮ Inizio", firstTitle: "Vai alla prima foto",
     normal: "1x", manualBtn: "📍 Fissa luogo", manualBtnTitle: "Fissa a mano un tratto senza GPS",
@@ -401,7 +401,7 @@ const STR = {
   ru: {
     home: "⌂ Главная", homeTitle: "Список поездок",
     mapStreet: "🗺 Карта", mapSat: "🛰 Спутник", mapTerrain: "⛰ Рельеф", mapBld: "🏢 3D",
-    tripsTitle: "Выбрать поездку", localOpen: "📂 Открыть папку", filePick: "📷 Выбрать фото", pickedTrip: "Выбранные фото",
+    tripsTitle: "Выбрать поездку", localOpen: "📂 Открыть папку", pickedTrip: "Выбранные фото",
     noTrips: "📂 Выберите локальную папку travel (фото читаются в браузере, без загрузки)",
     play: "▶ Старт", pause: "⏸ Пауза", first: "⏮ Начало", firstTitle: "К первому фото",
     normal: "1x", manualBtn: "📍 Указать место", manualBtnTitle: "Вручную указать участок без GPS",
@@ -445,7 +445,7 @@ const STR = {
   th: {
     home: "⌂ หน้าแรก", homeTitle: "รายการทริป",
     mapStreet: "🗺 แผนที่", mapSat: "🛰 ดาวเทียม", mapTerrain: "⛰ ภูมิประเทศ", mapBld: "🏢 3D",
-    tripsTitle: "เลือกทริป", localOpen: "📂 เปิดโฟลเดอร์", filePick: "📷 เลือกรูป", pickedTrip: "รูปที่เลือก",
+    tripsTitle: "เลือกทริป", localOpen: "📂 เปิดโฟลเดอร์", pickedTrip: "รูปที่เลือก",
     noTrips: "📂 เลือกโฟลเดอร์ travel ในเครื่อง (อ่านรูปในเบราว์เซอร์เท่านั้น ไม่มีการอัปโหลด)",
     play: "▶ เล่น", pause: "⏸ หยุด", first: "⏮ เริ่ม", firstTitle: "ไปรูปแรก",
     normal: "1x", manualBtn: "📍 ปักหมุด", manualBtnTitle: "ปักหมุดช่วงที่ไม่มี GPS เอง",
@@ -489,7 +489,7 @@ const STR = {
   vi: {
     home: "⌂ Trang chủ", homeTitle: "Danh sách chuyến đi",
     mapStreet: "🗺 Bản đồ", mapSat: "🛰 Vệ tinh", mapTerrain: "⛰ Địa hình", mapBld: "🏢 3D",
-    tripsTitle: "Chọn chuyến đi", localOpen: "📂 Mở thư mục", filePick: "📷 Chọn ảnh", pickedTrip: "Ảnh đã chọn",
+    tripsTitle: "Chọn chuyến đi", localOpen: "📂 Mở thư mục", pickedTrip: "Ảnh đã chọn",
     noTrips: "📂 Chọn thư mục travel trên máy (ảnh chỉ đọc trong trình duyệt, không tải lên)",
     play: "▶ Phát", pause: "⏸ Dừng", first: "⏮ Đầu", firstTitle: "Về ảnh đầu",
     normal: "1x", manualBtn: "📍 Ghim vị trí", manualBtnTitle: "Tự ghim đoạn không có GPS",
@@ -533,7 +533,7 @@ const STR = {
   id: {
     home: "⌂ Beranda", homeTitle: "Daftar perjalanan",
     mapStreet: "🗺 Peta", mapSat: "🛰 Satelit", mapTerrain: "⛰ Medan", mapBld: "🏢 3D",
-    tripsTitle: "Pilih perjalanan", localOpen: "📂 Buka folder", filePick: "📷 Pilih foto", pickedTrip: "Foto terpilih",
+    tripsTitle: "Pilih perjalanan", localOpen: "📂 Buka folder", pickedTrip: "Foto terpilih",
     noTrips: "📂 Pilih folder travel lokal (foto hanya dibaca di browser, tidak diunggah)",
     play: "▶ Putar", pause: "⏸ Jeda", first: "⏮ Awal", firstTitle: "Ke foto pertama",
     normal: "1x", manualBtn: "📍 Tandai tempat", manualBtnTitle: "Tandai manual ruas tanpa GPS",
