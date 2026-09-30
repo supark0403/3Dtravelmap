@@ -360,14 +360,36 @@ function initPanelDrag() {
   window.addEventListener("mousemove", (e) => {
     if (!mode) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
-    let { left, top, width, height } = r0;
+    let { left, top } = r0;
     if (mode === "move") {
       left = Math.max(0, left + dx); top = Math.max(0, top + dy);
     } else {
-      if (mode.includes("e")) width = Math.max(220, width + dx);
-      if (mode.includes("s")) height = Math.max(120, height + dy);
-      if (mode.includes("w")) { width = Math.max(220, width - dx); if (width > 220) left = Math.max(0, left + dx); }
-      if (mode.includes("n")) { height = Math.max(120, height - dy); if (height > 120) top = Math.max(0, top + dy); }
+      // 사진 비율 고정: 한 축으로 끌면 다른 축이 비율대로 따라옴
+      const mediaBox = el.querySelector("#media");
+      const mel = el.querySelector("#media img, #media video");
+      let ratio = 4 / 3;
+      if (mel) {
+        const nw = mel.naturalWidth || mel.videoWidth, nh = mel.naturalHeight || mel.videoHeight;
+        if (nw && nh) ratio = nw / nh;
+      }
+      const cs = getComputedStyle(el);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const chromeH = r0.height - mediaBox.getBoundingClientRect().height;
+      const maxW = window.innerWidth * 0.9, maxH = window.innerHeight * 0.9;
+      let width, height;
+      if (mode.includes("e") || mode.includes("w")) {
+        width = Math.min(maxW, Math.max(220, r0.width + (mode.includes("e") ? dx : -dx)));
+        let iw = width - padX, ih = iw / ratio;
+        height = ih + chromeH;
+        if (height > maxH) { height = maxH; ih = height - chromeH; iw = ih * ratio; width = iw + padX; }
+      } else {
+        height = Math.min(maxH, Math.max(150, r0.height + (mode.includes("s") ? dy : -dy)));
+        let ih = height - chromeH, iw = ih * ratio;
+        width = iw + padX;
+        if (width > maxW) { width = maxW; iw = width - padX; ih = iw / ratio; height = ih + chromeH; }
+      }
+      if (mode.includes("w")) left = Math.max(0, r0.left + (r0.width - width));
+      if (mode.includes("n")) top = Math.max(0, r0.top + (r0.height - height));
       el.style.width = width + "px"; el.style.height = height + "px";
     }
     el.style.left = left + "px"; el.style.top = top + "px";
