@@ -36,27 +36,28 @@ async function parseLocalFiles(fileList, onProgress) {
   LOCAL.root = rp0.length > 1 ? rp0[0] : "";
   if (onProgress) onProgress(0, files.length);
   const names = Object.keys(groups).sort();
-  let done = 0;
+  let done = 0, skippedFiles = 0;
+  const timed = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   for (const name of names) {
     const fl = groups[name].sort((a, b) => (a.name < b.name ? -1 : 1));
     const items = [];
     let k = 0;
     for (const f of fl) {
       try {
-        items.push(await parseLocalFile(f, name, k++));
+        items.push(await timed(parseLocalFile(f, name, k++), 30000));
       } catch (e) {
-        items.push({ id: "m" + String(k++).padStart(4, "0"), trip: name, file: f.name,
-          type: "photo", has_gps: false, lat: null, lon: null, datetime: null,
-          size: f.size, u: "", _handle: f._handle || null, broken: true });
+        skippedFiles++;
+        k++;
+        continue;
       }
       if (++done % 5 === 0 && onProgress) onProgress(done, files.length);
     }
-    const tl = buildLocalTimeline(name, items.filter(m => !m.broken));
+    const tl = buildLocalTimeline(name, items);
     LOCAL.trips[name] = tl;
     LOCAL.order.push(name);
   }
   if (onProgress) onProgress(files.length, files.length);
-  return LOCAL.order.map(n => ({ id: n, name: n, local: true, ...LOCAL.trips[n].meta }));
+  return { skipped: skippedFiles };
 }
 
 async function parseLocalFile(f, trip, k) {
@@ -139,6 +140,7 @@ async function pickLocalFolderFS(onCount) {
   try { perm = await dir.requestPermission({ mode: "readwrite" }); } catch (e) {}
   LOCAL.write = (perm === "granted");
   const files = [];
+  let skipped = 0;
   async function walk(h, trail) {
     let iter;
     try { iter = h.entries(); } catch (e) { return; }
@@ -153,11 +155,11 @@ async function pickLocalFolderFS(onCount) {
         } else if (e.kind === "directory") {
           await walk(e, [...trail, name]);
         }
-      } catch (err) { /* 건너뜀 */ }
+      } catch (err) { skipped++; }
     }
   }
   await walk(dir, []);
-  return files;
+  return { files, skipped };
 }
 
 // ---- 원본 JPEG에 GPS 기록 (piexif) ----
