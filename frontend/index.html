@@ -12,6 +12,16 @@
 </head>
 <body>
 <div id="map"></div>
+<button id="compass" title="북쪽으로" data-i18n-title="compassTitle">
+  <svg viewBox="0 0 40 40" width="40" height="40">
+    <circle cx="20" cy="20" r="18" fill="#ffffff" stroke="#9aa0a6" stroke-width="1.5"/>
+    <g id="needle">
+      <polygon points="20,6 24.5,22 20,19.5 15.5,22" fill="#EA4335"/>
+      <polygon points="20,34 24.5,22 20,24.5 15.5,22" fill="#4285FB"/>
+      <circle cx="20" cy="22" r="2.6" fill="#3c4043"/>
+    </g>
+  </svg>
+</button>
 <div id="topbar">
   <button id="home" title="여행 목록" data-i18n="home" data-i18n-title="homeTitle">⌂ 홈</button>
   <span id="tripname"></span>
