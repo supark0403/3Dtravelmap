@@ -455,7 +455,7 @@ async function showHome() {
   $("tripname").textContent = "";
   $("tripNote").textContent = "";
   $("localPath").textContent = LOCAL.root ? "📁 " + LOCAL.root : "";
-  try { map.jumpTo({ center: [127.8, 36.3], zoom: 6.2, pitch: 0 }); } catch (e) {}
+  try { map.jumpTo({ center: [25, 30], zoom: 1.5, pitch: 0 }); } catch (e) {}
   $("triplist").innerHTML = "";
   if (!LOCAL.order.length) {
     $("triplist").innerHTML = `<small>${T("noTrips")}</small>`;
