@@ -74,7 +74,7 @@ function onBaseError(kind) {
   else $("mapstatus").textContent = "지도 로드 실패 (네트워크 확인 필요)";
 }
 
-const EMO_ICONS = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢", bed: "🛏️", pack: "🎒" };
+const EMO_ICONS = { walk: "🚶", transit: "🚇", plane: "✈️", ship: "🚢", bed: "🛏️", sleep: "🛌" };
 function emoImage(emoji) {
   const c = document.createElement("canvas");
   c.width = c.height = 96;
@@ -178,16 +178,12 @@ function renderTripLayers() {
   map.addLayer({ id: "tm-mover", type: "symbol", source: "tm-mover-src",
     layout: { "icon-image": ["get", "icon"], "icon-size": 1,
       "icon-allow-overlap": true, "icon-ignore-placement": true, "icon-offset": [0, -14] } });
-  // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨 (동일 지점 겹치면 오른쪽으로 하나씩 밀어냄)
-  const seenPt = {};
+  // 날짜 경계: 해당 일차 첫 사진에 N일차 라벨 (1일차=공항, 이후=숙소)
   map.addSource("tm-days-src", { type: "geojson",
     data: { type: "FeatureCollection", features: groups.map((g, n) => {
       const first = g[0];
-      const key = first.d.d_lon.toFixed(6) + "," + first.d.d_lat.toFixed(6);
-      const k = seenPt[key] || 0;
-      seenPt[key] = k + 1;
       return { type: "Feature", geometry: { type: "Point", coordinates: [first.d.d_lon, first.d.d_lat] },
-        properties: { i: first.i, label: " ".repeat(k * 5) + (n + 1) + "일차" } };
+        properties: { i: first.i, label: (n + 1) + "일차 " + (n === 0 ? "공항" : "숙소") } };
     }) } });
   map.addLayer({ id: "tm-days", type: "symbol", source: "tm-days-src",
     layout: { "text-field": ["get", "label"], "text-size": 14, "text-offset": [0, -1.6],
@@ -684,11 +680,10 @@ function interlude(i, advance) {
   pendingInter = { i, advance };
   // 점 위 아이콘만 침대 → 배낭 → 원래 이동 아이콘 순으로 (고정 시간, 배속 무시)
   const d = shown[i];
-  const [mode] = segMode(shown[i - 1], d);
   setMover([d.d_lon, d.d_lat], "bed");
   setMoverSize(1.35);
   $("mapstatus").textContent = dayNum(i) + "일차 시작 — 기상 + 짐싸기";
-  const seq = ["bed", "pack", mode];
+  const seq = ["bed", "sleep", "bed"];
   let k = 0;
   wakeInt = setInterval(() => {
     k = Math.min(k + 1, seq.length - 1);
