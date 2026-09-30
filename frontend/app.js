@@ -183,7 +183,7 @@ function renderTripLayers() {
     data: { type: "FeatureCollection", features: groups.map((g, n) => {
       const first = g[0];
       return { type: "Feature", geometry: { type: "Point", coordinates: [first.d.d_lon, first.d.d_lat] },
-        properties: { i: first.i, label: n === 0 ? "1일차 공항" : "숙소" } };
+        properties: { i: first.i, label: n === 0 ? "공항" : "숙소" } };
     }) } });
   map.addLayer({ id: "tm-days", type: "symbol", source: "tm-days-src",
     layout: { "text-field": ["get", "label"], "text-size": 14, "text-offset": [0, -1.6],
