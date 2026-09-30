@@ -249,8 +249,10 @@ async function main() {
 
   $("home").onclick = showHome;
   const langSel = $("langSel");
-  if (langSel) { langSel.value = LANG; langSel.onchange = e => setLang(e.target.value); }
-  setLang(LANG);
+  if (langSel) {
+    if (LANG) { langSel.value = LANG; setLang(LANG); }
+    langSel.onchange = e => setLang(e.target.value);
+  }
   $("localOpen").onclick = async () => {
     if (window.showDirectoryPicker) {
       try {
@@ -458,7 +460,6 @@ function openLocalTrip(name) {
 
 function enterTrip(tl, label) {
   stop();
-  seenDays.clear();
   shownDay = null;
   tripRenderTries = 0;
   TL = tl;
@@ -555,9 +556,6 @@ function setMover(pos, icon) {
       properties: { icon: "mv-" + moverIcon } });
   } catch (e) {}
 }
-function setMoverSize(px) {
-  try { if (mapReady && map.getLayer("tm-mover")) map.setLayoutProperty("tm-mover", "icon-size", px); } catch (e) {}
-}
 
 // 아이콘을 선 따라 미끄러지듯 이동 (구간 시간에 맞춤)
 function glideMover(to, durMs, icon) {
@@ -587,7 +585,7 @@ async function mSearch() {
   if (!q) return;
   $("mresults").textContent = T("searching");
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=${LANG}&q=${encodeURIComponent(q)}`);
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&accept-language=${LANG || "ko"}&q=${encodeURIComponent(q)}`);
     const list = await r.json();
     if (!list.length) { $("mresults").textContent = T("noResult"); return; }
     $("mresults").innerHTML = "";
@@ -704,6 +702,13 @@ function applyPanelMin() {
 }
 
 let shownDay = null;
+function glowDay(b) {
+  b.classList.remove("glow");
+  void b.offsetWidth;
+  b.classList.add("glow");
+  clearTimeout(b._glowTO);
+  b._glowTO = setTimeout(() => b.classList.remove("glow"), 2000);
+}
 function go(i) {
   if (!shown.length) return;
   idx = Math.max(0, Math.min(shown.length - 1, i));
@@ -720,7 +725,17 @@ function go(i) {
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
   $("cur").textContent = `#${idx + 1}/${shown.length} · ${d.datetime} · ${label} · ${d.file}`;
   const dk = dayKey(idx);
-  if (dk !== shownDay) { shownDay = dk; $("daybadge").textContent = T("day", { n: dayNum(idx) }); }
+  if (dk !== shownDay) {
+    shownDay = dk;
+    const b = $("daybadge");
+    // 1일차 → 침대 → 2일차: 변경 순간 침대 표시 후 2초 발광
+    b.textContent = "🛏️";
+    glowDay(b);
+    clearTimeout(b._dayTO);
+    b._dayTO = setTimeout(() => {
+      if (shownDay === dk) { b.textContent = T("day", { n: dayNum(idx) }); glowDay(b); }
+    }, 700);
+  }
   const isHeic = /\.(heic|heif)$/i.test(d.file || "");
   if (d.type === "photo" && isHeic) {
     $("media").innerHTML = `<div class="heic">${T("heic")}<br><small>${d.file}</small><br><a href="${d.u}" download="${d.file}">${T("heicDl")}</a></div>`;
@@ -750,8 +765,7 @@ function toggle() {
   if (playing) { stop(); return; }
   playing = true;
   $("play").textContent = T("pause");
-  if (isDayStart(idx) && !seenDays.has(dayKey(idx))) interlude(idx > 0 ? idx - 1 : idx, idx > 0 ? idx : null);
-  else startTimer();
+  startTimer();
 }
 function startTimer() {
   if (timer) clearInterval(timer);
@@ -759,64 +773,24 @@ function startTimer() {
 }
 function stepOnce() {
   if (idx >= shown.length - 1) { stop(); return; }
-  const next = idx + 1;
-  if (isDayStart(next) && !seenDays.has(dayKey(next))) { interlude(idx, next); return; }
-  go(next);
+  go(idx + 1);
 }
 function stop() {
   playing = false;
   if (timer) { clearInterval(timer); timer = null; }
-  cancelInterlude();
   const p = $("play"); if (p) p.textContent = T("play");
 }
 
-// ---- 일차 시작 인터루드: 기상 + 가방싸기 (배속 무시 고정시간, 사진 정지) ----
-let playing = false, interludeTO = null, wakeTOs = [], pendingInter = null;
-const seenDays = new Set();
-const INTERLUDE_MS = 2400;
+// ---- 일차 표시: dayKey/dayNum ----
+let playing = false;
 function dayKey(i) { const d = shown[i]; return d ? (d.datetime || "").slice(0, 10) : ""; }
-function isDayStart(i) { return i <= 0 || dayKey(i) !== dayKey(i - 1); }
 function dayNum(i) {
   const s = new Set();
   for (let k = 0; k <= i && k < shown.length; k++) s.add(dayKey(k));
   return s.size;
 }
-function interlude(iconIdx, target) {
-  cancelInterlude();
-  if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; } // 잔류 활공 취소
-  if (timer) { clearInterval(timer); timer = null; } // 사진 넘김 정지 (재생 상태 유지)
-  const key = dayKey(target ?? iconIdx);
-  seenDays.add(key);
-  pendingInter = { target };
-  // 전날 마지막 사진(숙소 자리)에서 침대 → 누운 사람 → 침대 순으로 (고정 시간, 배속 무시)
-  const d = shown[iconIdx];
-  setMover([d.d_lon, d.d_lat], "bed");
-  setMoverSize(1.35);
-  $("mapstatus").textContent = T("interlude", { n: dayNum(target ?? iconIdx) });
-  // 정확히 3단계: 침대(0~800) → 누운 사람(800~1600, 크게) → 침대(1600~2400)
-  wakeTOs = [
-    setTimeout(() => { setMover(moverPos, "sleep"); setMoverSize(1.6); }, 800),
-    setTimeout(() => { setMover(moverPos, "bed"); setMoverSize(1.35); }, 1600),
-  ];
-  interludeTO = setTimeout(finishInterlude, INTERLUDE_MS);
-}
-function finishInterlude() {
-  const p = pendingInter; pendingInter = null;
-  cancelInterlude();
-  if (!playing) return;
-  if (p && p.target != null) go(p.target);
-  startTimer();
-}
-function cancelInterlude() {
-  if (interludeTO) { clearTimeout(interludeTO); interludeTO = null; }
-  wakeTOs.forEach(t => clearTimeout(t)); wakeTOs = [];
-  pendingInter = null;
-  setMoverSize(1.0);
-  if (typeof TL !== "undefined" && TL) $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
-}
-// 수동 이동: 인터루드 취소 후 이동, 재생 중이면 타이머 복구
+// 수동 이동: 재생 중이면 타이머 복구
 function nav(i) {
-  cancelInterlude();
   go(i);
   if (playing && !timer) startTimer();
 }

@@ -44,7 +44,6 @@ const STR = {
     heroD1: "여행 사진 속 촬영 시간과 GPS를 읽어 3D 지구본 위에 시간순 여행 경로를 자동으로 그립니다.",
     heroD2: "GPS가 없는 사진은 같은 장소에 모아두고, 폴더를 지정하는 것만으로 경로·재생·일차별 이동이 완성됩니다.",
     heroD3: "사진은 브라우저에서만 읽고 어디에도 업로드되지 않습니다.",
-    heroKw: "3D여행지도 · 여행경로 · 사진지도 · EXIF 정리 · GPS 사진 · 포토맵 · 여행기록 · travel map · photo map · 3D旅行 · 3D旅行地图",
     gpsOverwrite: "이미 GPS 값이 있는 사진 {n}장이 포함되어 있습니다. 진짜로 덮어씌우시겠습니까?",
     exifrFail: "exifr 로드 실패(네트워크 확인)", noPhotos: "사진/영상이 없음", wPiexif: "piexif 로드 실패", wVerify: "검증 실패",
   },
@@ -90,7 +89,6 @@ const STR = {
     heroD1: "Reads shooting time and GPS from your travel photos and draws the journey on a 3D globe in time order.",
     heroD2: "Photos without GPS are grouped at the same place — just pick a folder and the route, playback and day-by-day travel are ready.",
     heroD3: "Photos are read only inside your browser and never uploaded anywhere.",
-    heroKw: "3D travel map · travel route · photo map · EXIF organizer · GPS photos · travel log · 3D旅行 · 3D旅行地图 · 旅行地図",
     gpsOverwrite: "{n} photo(s) already have GPS values. Really overwrite them?",
     exifrFail: "exifr failed to load (check network)", noPhotos: "No photos/videos", wPiexif: "piexif failed to load", wVerify: "verification failed",
   },
@@ -136,7 +134,6 @@ const STR = {
     heroD1: "旅行写真の撮影時刻とGPSを読み取り、3D地球儀の上に時系列の旅行ルートを自動で描きます。",
     heroD2: "GPSのない写真は同じ場所にまとめ、フォルダを指定するだけでルート・再生・日別移動が完成します。",
     heroD3: "写真はブラウザ内でのみ読み取られ、どこにもアップロードされません。",
-    heroKw: "3D旅行地図 · 旅行ルート · 写真地図 · EXIF整理 · GPS写真 · フォトマップ · 旅行記録 · travel map · 3D旅行地图",
     gpsOverwrite: "GPS値を持つ写真が{n}枚含まれています。本当に上書きしますか？",
     exifrFail: "exifr読込失敗（ネットワーク確認）", noPhotos: "写真/動画なし", wPiexif: "piexif読込失敗", wVerify: "検証失敗",
   },
@@ -182,16 +179,15 @@ const STR = {
     heroD1: "读取旅行照片的拍摄时间和GPS，在3D地球仪上按时间顺序自动绘制旅行路线。",
     heroD2: "没有GPS的照片会归到同一地点，只需指定文件夹，路线、播放、逐日行程自动完成。",
     heroD3: "照片仅在浏览器内读取，不会上传到任何地方。",
-    heroKw: "3D旅行地图 · 旅行路线 · 照片地图 · EXIF整理 · GPS照片 · 旅行记录 · travel map · photo map · 3D旅行",
     gpsOverwrite: "其中有{n}张照片已有GPS值，真的要覆盖吗？",
     exifrFail: "exifr加载失败（检查网络）", noPhotos: "无照片/视频", wPiexif: "piexif加载失败", wVerify: "验证失败",
   },
 };
-let LANG = "ko";
-try { LANG = localStorage.getItem("tm_lang") || "ko"; } catch (e) {}
-if (!STR[LANG]) LANG = "ko";
+let LANG = null;
+try { LANG = localStorage.getItem("tm_lang") || null; } catch (e) {}
+if (!STR[LANG]) LANG = null;
 function T(key, params) {
-  let s = (STR[LANG] && STR[LANG][key]) ?? STR.ko[key] ?? key;
+  let s = (LANG && STR[LANG] && STR[LANG][key]) ?? STR.ko[key] ?? key;
   if (params) for (const k in params) s = s.replace("{" + k + "}", params[k]);
   return s;
 }
