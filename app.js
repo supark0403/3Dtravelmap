@@ -226,10 +226,17 @@ async function main() {
   map = new maplibregl.Map({ container: "map", style: styleFor("street"),
     center: [127.5, 36.5], zoom: 2, pitch: 0, attributionControl: { compact: true } });
   if (map.setProjection) { try { map.setProjection({ type: "globe" }); } catch (e) {} }
-  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: false }), "top-right");
   map.on("load", () => { mapReady = true; setup3D(); });
   map.on("style.load", () => setup3D());
   map.on("error", () => { $("mapstatus").textContent = T("mapTileErr"); });
+  const updateCompass = () => {
+    const n = document.querySelector("#needle");
+    if (n) { try { n.setAttribute("transform", `rotate(${-map.getBearing()} 20 22)`); } catch (e) {} }
+  };
+  map.on("rotate", updateCompass);
+  $("compass").onclick = () => { try { map.easeTo({ bearing: 0, duration: 800 }); } catch (e) {} };
+  updateCompass();
   map.on("click", e => {
     const fs = map.queryRenderedFeatures(e.point, { layers: ["tm-days", "tm-photos", "tm-mover"] });
     const f = fs && fs[0];
