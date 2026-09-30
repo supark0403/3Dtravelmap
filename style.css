@@ -1,6 +1,7 @@
 html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,"Malgun Gothic",sans-serif}
 #map{position:fixed;inset:0}
-#compass{position:fixed;top:128px;right:10px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.94);border:1px solid #dadce0;cursor:pointer;z-index:5;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+/* 원래 나침반 모양 그대로 빨강/파랑만 입힘 */
+.maplibregl-ctrl button.maplibregl-ctrl-compass .maplibregl-ctrl-icon{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' viewBox='0 0 29 29'%3E%3Cpath fill='%23EA4335' d='m10.5 14 4-8 4 8z'/%3E%3Cpath fill='%234285FB' d='m10.5 16 4 8 4-8z'/%3E%3C/svg%3E") !important}
 #topbar{position:fixed;top:12px;left:12px;display:flex;gap:8px;align-items:center;background:rgba(10,14,20,.85);color:#fff;border-radius:10px;padding:8px 12px;z-index:5;max-width:calc(100% - 220px);flex-wrap:wrap}
 #topbar button{background:#1d2733;color:#fff;border:1px solid #3a4a5d;border-radius:6px;padding:4px 10px;cursor:pointer}
 #topbar button.on{border-color:#4caf50;color:#8fdc92}
