@@ -319,14 +319,32 @@ async function main() {
     try {
       const r = await parseLocalFiles(files, (a, b) => { lastProg = Date.now(); $("tripNote").textContent = T("reading", { a, b }); });
       showHome();
-      let m = 0;
-      LOCAL.order.forEach(n => { m += (LOCAL.trips[n].meta.total || 0); });
-      let msg = T("doneMsg", { t: LOCAL.order.length, m });
+      let m = 0, g = 0, t = 0, n = 0;
+      LOCAL.order.forEach(name => {
+        m += (LOCAL.trips[name].meta.total || 0);
+        LOCAL.trips[name].items.forEach(it => {
+          if (it.has_gps) g++;
+          else if (it.datetime) t++;
+          else n++;
+        });
+      });
+      let msg = T("doneMsg", { t: LOCAL.order.length, m }) + " · " + T("diagMsg", { g, t, n });
       if (r && r.skipped) msg += " " + T("skipped", { n: r.skipped });
       $("tripNote").textContent = msg;
     } catch (err) { $("tripNote").textContent = T("readFail") + err.message; }
     finally { clearInterval(watcher); }
   }
+  $("inspectPick").onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    const box = $("inspectRes");
+    if (!f) return;
+    box.textContent = T("reading", { a: 1, b: 1 });
+    const r = await inspectFile(f);
+    const mb = (r.size / 1048576).toFixed(1) + "MB";
+    const verdict = r.gps ? T("okFile") : (r.exif ? T("timeOnlyFile") : T("noExifFile"));
+    box.innerHTML = `${T("infoFile")}: ${r.name} (${mb})<br>EXIF: ${r.exif ? T("hasIt") : T("none")}<br>GPS: ${(r.gps ? r.lat.toFixed(5) + ", " + r.lon.toFixed(5) : T("none"))}<br>${T("infoTime")}: ${r.datetime || T("none")}<br>→ ${verdict}`;
+  };
   $("filePick").onchange = async e => {
     const files = e.target.files;
     e.target.value = "";
