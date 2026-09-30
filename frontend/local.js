@@ -37,6 +37,12 @@ async function parseLocalFiles(fileList, onProgress) {
   if (onProgress) onProgress(0, files.length);
   const names = Object.keys(groups).sort();
   let done = 0, skippedFiles = 0;
+  let db = null;
+  const cache = new Map();
+  try {
+    db = await idbOpen();
+    (await idbGetAll(db)).forEach(r => { if (r && r.k) cache.set(r.k, r); });
+  } catch (e) { db = null; }
   const CONC = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4)));
   const timed = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   for (const name of names) {
@@ -49,7 +55,7 @@ async function parseLocalFiles(fileList, onProgress) {
       while (wi < fl.length) {
         const j = wi++;
         try {
-          items[j] = await timed(parseLocalFile(fl[j], name, ids[j]), 30000);
+          items[j] = await timed(parseLocalFile(fl[j], name, ids[j], cache), 30000);
         } catch (e) {
           skippedFiles++;
         }
@@ -62,27 +68,77 @@ async function parseLocalFiles(fileList, onProgress) {
     LOCAL.order.push(name);
   }
   if (onProgress) onProgress(files.length, files.length);
+  if (db) { try { await idbPutMany(db, [...cache.values()].filter(v => v && v.k)); } catch (e) {} }
   return { skipped: skippedFiles };
 }
 
-async function parseLocalFile(f, trip, id) {
+// EXIF는 필요한 태그만 읽음 (XMP/ICC/썸네일 등 무거운 세그먼트 스킵)
+const EXIF_OPT = { tiff: true, ifd0: true, exif: { pick: ["DateTimeOriginal", "CreateDate"] },
+  gps: true, ifd1: false, xmp: false, icc: false, iptc: false,
+  makerNote: false, userComment: false, interop: false };
+
+// EXIF 결과 캐시 (파일명+크기+수정시각 키): 두 번째 열기부터 즉시
+function idbOpen() {
+  return new Promise((res, rej) => {
+    try {
+      const q = indexedDB.open("tm-exif", 1);
+      q.onupgradeneeded = () => q.result.createObjectStore("exif", { keyPath: "k" });
+      q.onsuccess = () => res(q.result);
+      q.onerror = () => rej(q.error);
+    } catch (e) { rej(e); }
+  });
+}
+function exifKey(f) { return f.name + "|" + f.size + "|" + (f.lastModified || 0); }
+async function idbGetAll(db) {
+  return new Promise((res) => {
+    try {
+      const tx = db.transaction("exif", "readonly");
+      const q = tx.objectStore("exif").getAll();
+      q.onsuccess = () => res(q.result || []);
+      q.onerror = () => res([]);
+    } catch (e) { res([]); }
+  });
+}
+async function idbPutMany(db, rows) {
+  return new Promise((res) => {
+    try {
+      const tx = db.transaction("exif", "readwrite");
+      const st = tx.objectStore("exif");
+      rows.forEach(r => { try { st.put(r); } catch (e) {} });
+      tx.oncomplete = () => res();
+      tx.onerror = () => res();
+    } catch (e) { res(); }
+  });
+}
+
+async function parseLocalFile(f, trip, id, cache) {
   const m = { id, trip, file: f.name,
     type: LOCAL_VID.test(f.name) ? "video" : "photo",
     has_gps: false, lat: null, lon: null, datetime: null, size: f.size,
     u: URL.createObjectURL(f), _handle: f._handle || null };
-  try {
-    if (m.type === "photo" && typeof exifr !== "undefined") {
-      const ex = await exifr.parse(f, { tiff: true, exif: true, gps: true }).catch(() => null);
-      if (ex) {
-        const dt = ex.DateTimeOriginal || ex.CreateDate || ex.ModifyDate;
-        if (dt instanceof Date && !isNaN(dt)) m.datetime = localFmtDT(dt);
-        if (typeof ex.latitude === "number" && typeof ex.longitude === "number" &&
-            Math.abs(ex.latitude) <= 90 && Math.abs(ex.longitude) <= 180) {
-          m.lat = ex.latitude; m.lon = ex.longitude; m.has_gps = true;
+  const hit = cache && cache.get(exifKey(f));
+  if (hit) {
+    m.datetime = hit.datetime || null;
+    if (hit.has_gps) { m.lat = hit.lat; m.lon = hit.lon; m.has_gps = true; }
+  } else {
+    try {
+      if (m.type === "photo" && typeof exifr !== "undefined") {
+        const ex = await exifr.parse(f, EXIF_OPT).catch(() => null);
+        if (ex) {
+          const dt = ex.DateTimeOriginal || ex.CreateDate || ex.ModifyDate;
+          if (dt instanceof Date && !isNaN(dt)) m.datetime = localFmtDT(dt);
+          if (typeof ex.latitude === "number" && typeof ex.longitude === "number" &&
+              Math.abs(ex.latitude) <= 90 && Math.abs(ex.longitude) <= 180) {
+            m.lat = ex.latitude; m.lon = ex.longitude; m.has_gps = true;
+          }
         }
       }
+    } catch (e) { /* no gps */ }
+    if (cache) {
+      cache.set(exifKey(f), { k: exifKey(f), datetime: m.datetime,
+        lat: m.lat, lon: m.lon, has_gps: m.has_gps });
     }
-  } catch (e) { /* no gps */ }
+  }
   if (!m.datetime) {
     const mm = LOCAL_TS.exec(f.name);
     if (mm) m.datetime = `${mm[1].slice(0, 4)}-${mm[1].slice(4, 6)}-${mm[1].slice(6, 8)} ${mm[2].slice(0, 2)}:${mm[2].slice(2, 4)}:${mm[2].slice(4, 6)}`;
