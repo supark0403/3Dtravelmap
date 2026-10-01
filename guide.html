@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사용법 — 3D Travel Map</title>
+<style>
+body{font-family:system-ui,"Malgun Gothic",sans-serif;max-width:720px;margin:0 auto;padding:24px 16px;line-height:1.8;color:#222}
+h1{font-size:22px}h2{font-size:17px;margin-top:28px}
+a{color:#1565c0}.muted{color:#666;font-size:13px}
+ol,ul{padding-left:22px}
+</style>
+</head>
+<body>
+<h1>사용법</h1>
+<p class="muted">3D Travel Map은 서버가 없는 정적 웹앱입니다. 사진은 브라우저 안에서만 처리되고 외부로 업로드되지 않습니다.</p>
+
+<h2>1. 여행 불러오기</h2>
+<ul>
+<li><strong>PC:</strong> 📂 내 폴더 열기로 여행 상위 폴더를 선택하면 하위 폴더별로 여행이 나뉩니다.</li>
+<li><strong>모바일:</strong> 📱 모바일용 사진 고르기로 사진을 여러 장 선택합니다. 구글 포토에서 고르면 GPS가 유지됩니다. (폴더째 선택은 폴더 경로를 통하므로 GPS가 지워질 수 있습니다.)</li>
+</ul>
+
+<h2>2. GPS·시간 정보</h2>
+<ul>
+<li>지도에 올라가려면 사진에 촬영 시간과 GPS가 필요합니다. 둘 다 없으면 배치되지 않습니다.</li>
+<li>읽기가 끝나면 상단에 <em>GPS N · 시간만 N · 없음 N</em>으로 표시됩니다.</li>
+<li>GPS 0장이면 메신저·클라우드 복사본처럼 EXIF가 지워진 파일일 가능성이 큽니다. 원본 파일로 다시 시도해 보세요.</li>
+</ul>
+
+<h2>3. 재생·이동</h2>
+<ul>
+<li>▶ 재생으로 시간순 재생, ◀ ▶로 앞뒤 이동, 스크럽바로 점프합니다. 속도는 0.1~8배.</li>
+<li>국경을 넘는 구간은 ✈️, 나머지는 🚶로 표시됩니다. 국내선은 국가가 바뀌지 않아 🚶로 나옵니다.</li>
+<li>🧭 <strong>여행모드(실험):</strong> 따라가기 아래 체크박스. 켜면 시점이 60°로 눕고 다음 점을 정면으로 부드럽게 회전합니다. 끄거나 홈으로 가면 정북·평면으로 돌아옵니다.</li>
+</ul>
+
+<h2>4. 위치 직접 지정</h2>
+<ul>
+<li>GPS 없는 사진은 📍 위치지정으로 직접 박을 수 있습니다. 박은 위치가 앵커가 되어 앞뒤 사진이 재배치됩니다.</li>
+<li>지정 목록에서 개별 삭제, 내보내기/가져오기로 다른 기기·브라우저에 옮길 수 있습니다.</li>
+<li>JPEG 원본에는 GPS를 직접 기록할 수도 있습니다(쓰기 허용 폴더에서, GPS가 있는 사진은 덮어쓰지 않음).</li>
+</ul>
+
+<p><a href="./">← 3D Travel Map으로 돌아가기</a></p>
+</body>
+</html>
