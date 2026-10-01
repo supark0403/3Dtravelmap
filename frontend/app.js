@@ -252,6 +252,7 @@ async function main() {
     applyMover();
   };
   applyMover();
+  $("tmode").onchange = e => setTravel(e.target.checked);
   $("mapstatus").textContent = T("mapIs", { x: mapLabel(baseKind) });
   loadCountries(); // 국경 판정용 폴리곤 (실패해도 도보로 동작)
 
@@ -494,6 +495,7 @@ function initPanelDrag() {
 
 async function showHome() {
   stop();
+  if (travelOn) setTravel(false);
   if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; }
   try {
     for (const l of ["tm-route", "tm-photos", "tm-sel", "tm-mover", "tm-days", "tm-hill"]) if (map.getLayer(l)) map.removeLayer(l);
@@ -509,7 +511,7 @@ async function showHome() {
   $("tripname").textContent = "";
   $("tripNote").textContent = "";
   $("localPath").textContent = LOCAL.root ? "📁 " + LOCAL.root : "";
-  try { map.jumpTo({ center: [25, 30], zoom: 1.5, pitch: 0 }); } catch (e) {}
+  try { map.jumpTo({ center: [25, 30], zoom: 1.5, bearing: 0, pitch: 0 }); } catch (e) {}
   $("triplist").innerHTML = "";
   if (!LOCAL.order.length) {
     $("triplist").innerHTML = `<small>${T("noTrips")}</small>`;
@@ -635,6 +637,44 @@ function setMover(pos, icon) {
   } catch (e) {}
 }
 
+// 이동 방위각 (북 기준 시계방향, MapLibre bearing과 동일)
+function segBearing(a, b) {
+  const dLon = (b.d_lon - a.d_lon) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(b.d_lat * Math.PI / 180);
+  const x = Math.cos(a.d_lat * Math.PI / 180) * Math.sin(b.d_lat * Math.PI / 180)
+    - Math.sin(a.d_lat * Math.PI / 180) * Math.cos(b.d_lat * Math.PI / 180) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+// ---- 여행모드 (실험): 카메라는 아이콘에 고정, 다음 점 방향으로만 회전 ----
+let travelOn = false, travelPrevFollow = true, travelRot = null;
+function applyTravelCam(prev, cur, dur) {
+  // 시작 전 준비: 피치는 스냅, 방위는 이동 시간에 맞춰 최단경로로 (고배속 동기화)
+  try {
+    if (prev && (prev.d_lon !== cur.d_lon || prev.d_lat !== cur.d_lat)) {
+      const now = map.getBearing();
+      const to = segBearing(prev, cur);
+      const db = ((to - now + 540) % 360) - 180; // 최단 signed 각도
+      travelRot = { from: now, db, t0: performance.now(), dur: Math.max(120, Math.min(dur * 0.9, 1200)) };
+      map.jumpTo({ pitch: 60 });
+    } else { travelRot = null; map.jumpTo({ pitch: 60 }); }
+  } catch (e) { travelRot = null; }
+}
+function setTravel(on) {
+  travelOn = on;
+  travelRot = null;
+  $("tmode").checked = on;
+  try {
+    if (on) {
+      travelPrevFollow = $("follow").checked;
+      $("follow").checked = true;
+      map.jumpTo({ pitch: 60 });
+    } else {
+      $("follow").checked = travelPrevFollow;
+      map.jumpTo({ bearing: 0, pitch: 0 });
+    }
+  } catch (e) {}
+}
 // 아이콘을 선 따라 미끄러지듯 이동 (구간 시간에 맞춤)
 function glideMover(to, durMs, icon) {
   if (glideRAF) { cancelAnimationFrame(glideRAF); glideRAF = null; }
@@ -643,6 +683,7 @@ function glideMover(to, durMs, icon) {
   if (snapMover || durMs <= 0 || (from[0] === to[0] && from[1] === to[1])) {
     setMover(to);
     snapMover = false;
+    travelRot = null;
     if ($("follow").checked) { try { map.jumpTo({ center: to }); } catch (e) {} }
     return;
   }
@@ -652,8 +693,18 @@ function glideMover(to, durMs, icon) {
     const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
     const lng = from[0] + (to[0] - from[0]) * e, lat = from[1] + (to[1] - from[1]) * e;
     setMover([lng, lat]);
-    // 시점 고정: 매 프레임 아이콘 위치로 (딜레이 없음)
-    if ($("follow").checked) { try { map.jumpTo({ center: [lng, lat] }); } catch (err) {} }
+    // 시점 고정: 매 프레임 아이콘 위치로 (딜레이 없음). 여행모드는 같은 jumpTo에 회전 포함.
+    if ($("follow").checked) {
+      try {
+        if (travelOn && travelRot) {
+          const p = Math.min(1, (t - travelRot.t0) / travelRot.dur);
+          const e2 = p * p * p * (p * (p * 6 - 15) + 10); // smootherstep
+          const b = travelRot.from + travelRot.db * e2;
+          map.jumpTo({ center: [lng, lat], bearing: ((b + 540) % 360) - 180, pitch: 60 });
+          if (p >= 1) travelRot = null;
+        } else map.jumpTo({ center: [lng, lat] });
+      } catch (err) {}
+    }
     glideRAF = f < 1 ? requestAnimationFrame(step) : null;
   };
   glideRAF = requestAnimationFrame(step);
@@ -798,6 +849,7 @@ function go(i) {
   const dur0 = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9));
   // 장거리(5km+)는 절반 속도로 천천히
   const dur = hopKm(shown[idx - 1], d) > 5 ? Math.min(dur0 * 2, 3000) : dur0;
+  if (travelOn) applyTravelCam(idx > 0 ? shown[idx - 1] : null, d, dur);
   glideMover([d.d_lon, d.d_lat], dur, mode);
   const sel = map.getSource("tm-sel-src");
   if (sel) sel.setData({ type: "Feature", geometry: { type: "Point", coordinates: [d.d_lon, d.d_lat] } });
