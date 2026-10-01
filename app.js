@@ -415,8 +415,10 @@ function initPanelDrag() {
     const saved = JSON.parse(localStorage.getItem("tm_panel_pos") || "null");
     if (saved && +saved.top >= 0 && +saved.left >= 0) {
       el.style.top = saved.top + "px"; el.style.left = saved.left + "px"; el.style.right = "auto";
-      if (+saved.width > 0) el.style.width = saved.width + "px";
-      if (+saved.height > 0) el.style.height = saved.height + "px";
+      if (!panelMin) {
+        if (+saved.width > 0) el.style.width = saved.width + "px";
+        if (+saved.height > 0) el.style.height = saved.height + "px";
+      }
     }
   } catch (e) {}
   let mode = null, sx, sy, r0;
@@ -823,9 +825,16 @@ function hopKm(a, b) {
   return Math.hypot((b.d_lon - a.d_lon) * 91, (b.d_lat - a.d_lat) * 111);
 }
 
-let panelMin = false;
+let panelMin = false, panelSize = null;
 function applyPanelMin() {
-  $("panel").classList.toggle("min", panelMin);
+  const el = $("panel");
+  if (panelMin) {
+    panelSize = { w: el.style.width, h: el.style.height };
+    el.style.width = ""; el.style.height = ""; // 인라인 크기 제거해야 .min으로 축소됨
+  } else if (panelSize) {
+    el.style.width = panelSize.w || ""; el.style.height = panelSize.h || "";
+  }
+  el.classList.toggle("min", panelMin);
   const b = $("minbtn"); if (b) b.textContent = panelMin ? "□" : "–";
   try { localStorage.setItem("tm_panel_min", panelMin ? "1" : "0"); } catch (e) {}
 }
