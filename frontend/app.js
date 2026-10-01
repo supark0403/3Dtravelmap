@@ -626,7 +626,7 @@ function applyManual() {
 }
 
 let MPLACE = null;
-let glideRAF = null, snapMover = true;
+let glideRAF = null, snapMover = true, moverArrived = true;
 
 // 이동 아이콘 상태 → 심볼 레이어 반영
 function setMover(pos, icon) {
@@ -686,9 +686,11 @@ function glideMover(to, durMs, icon) {
     setMover(to);
     snapMover = false;
     travelRot = null;
+    moverArrived = true;
     if ($("follow").checked) { try { map.jumpTo({ center: to }); } catch (e) {} }
     return;
   }
+  moverArrived = false;
   const t0 = performance.now();
   const step = (t) => {
     const f = Math.min(1, (t - t0) / durMs);
@@ -707,7 +709,8 @@ function glideMover(to, durMs, icon) {
         } else map.jumpTo({ center: [lng, lat] });
       } catch (err) {}
     }
-    glideRAF = f < 1 ? requestAnimationFrame(step) : null;
+    if (f < 1) glideRAF = requestAnimationFrame(step);
+    else { glideRAF = null; moverArrived = true; }
   };
   glideRAF = requestAnimationFrame(step);
 }
@@ -820,11 +823,6 @@ function badge(d) {
   return `<span class="badge ${c}">${t}</span>` + (d.type === "video" ? ' <span class="badge held">VIDEO</span>' : "");
 }
 
-function hopKm(a, b) {
-  if (!a || !b) return 0;
-  return Math.hypot((b.d_lon - a.d_lon) * 91, (b.d_lat - a.d_lat) * 111);
-}
-
 let panelMin = false, panelSize = null;
 function applyPanelMin() {
   const el = $("panel");
@@ -855,9 +853,7 @@ function go(i) {
   $("scrub").value = idx;
   const d = shown[idx];
   const [mode, label] = segMode(shown[idx - 1], d);
-  const dur0 = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9));
-  // 장거리(5km+)는 절반 속도로 천천히
-  const dur = hopKm(shown[idx - 1], d) > 5 ? Math.min(dur0 * 2, 3000) : dur0;
+  const dur = Math.max(300, Math.min(1600, (BASE_MS / speed) * 0.9)); // 도착 게이트로 동기화 (장거리 가중 없음)
   if (travelOn) applyTravelCam(idx > 0 ? shown[idx - 1] : null, d, dur);
   glideMover([d.d_lon, d.d_lat], dur, mode);
   const sel = map.getSource("tm-sel-src");
@@ -909,6 +905,7 @@ function startTimer() {
   timer = setInterval(stepOnce, BASE_MS / speed);
 }
 function stepOnce() {
+  if (!moverArrived && !document.hidden) return; // 아이콘 도착 전엔 대기
   if (idx >= shown.length - 1) { stop(); return; }
   go(idx + 1);
 }
