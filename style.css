@@ -62,7 +62,7 @@ input[type=file].hidden{position:fixed;opacity:0;width:1px;height:1px;pointer-ev
 #mresults .tripcard{font-size:12px}#mplace{font-size:13px;margin:6px 0}#mrules{font-size:12px}
 .mrule{display:flex;gap:6px;align-items:center;background:#1d2733;border-radius:6px;padding:4px 8px;margin:4px 0}
 .mrule span{flex:1}
-#daybadge{position:fixed;top:48px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:16px;font-weight:700;border-radius:8px;padding:6px 16px;z-index:5}
+#daybadge{position:fixed;top:48px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#fff;font-size:24px;font-weight:700;border-radius:8px;padding:8px 20px;z-index:5}
 #daybadge.hidden{display:none}
 #daybadge.glow{animation:dayglow 2s ease-in-out 1;color:#fff;text-shadow:0 0 12px #ffd54f,0 0 28px #ff9800,0 0 44px #ff9800}
 @keyframes dayglow{0%{text-shadow:0 0 2px #fff}30%{text-shadow:0 0 18px #ffd54f,0 0 42px #ff9800}100%{text-shadow:0 0 2px #fff}}
