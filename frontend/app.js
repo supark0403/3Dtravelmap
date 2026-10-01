@@ -84,6 +84,7 @@ function onBaseError(kind) {
 }
 
 const EMO_ICONS = { walk: "🚶", plane: "✈️" };
+const DAY_COLORS = ["#2196f3", "#ff9800", "#e040fb", "#64dd17", "#ff5252", "#00bcd4", "#ffee58"];
 function emoImage(emoji) {
   const c = document.createElement("canvas");
   c.width = c.height = 96;
@@ -144,7 +145,6 @@ function renderTripLayers() {
   });
   // 날짜별 경로 조각: 앵커 전체를 시간순으로 이으면서 일차마다 색 다르게
   // (앵커 1개뿐인 날도 앞 점과 연결되어 선이 끊기지 않음)
-  const DAY_COLORS = ["#2196f3", "#ff9800", "#e040fb", "#64dd17", "#ff5252", "#00bcd4", "#ffee58"];
   const segFeats = [];
   let prev = null;
   groups.forEach((g, n) => {
@@ -867,7 +867,9 @@ function go(i) {
   if (dk !== shownDay) {
     shownDay = dk;
     const b = $("daybadge");
-    b.textContent = T("day", { n: dayNum(idx) });
+    const dn = dayNum(idx);
+    b.textContent = T("day", { n: dn });
+    b.style.color = DAY_COLORS[(dn - 1) % DAY_COLORS.length]; // 일차 선 색과 동일
     glowDay(b);
   }
   const isHeic = /\.(heic|heif)$/i.test(d.file || "");
