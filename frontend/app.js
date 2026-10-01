@@ -626,7 +626,15 @@ function applyManual() {
 }
 
 let MPLACE = null;
-let glideRAF = null, snapMover = true, moverArrived = true;
+let glideRAF = null, snapMover = true, moverArrived = true, tileWait0 = 0;
+// 다음 점이 현재 화면 밖에 있으면 타일 로딩 대기 (최대 4초, 그 후엔 진행)
+function farTarget() {
+  try {
+    const n = shown[idx + 1];
+    if (!n) return false;
+    return !map.getBounds().contains([n.d_lon, n.d_lat]);
+  } catch (e) { return false; }
+}
 
 // 이동 아이콘 상태 → 심볼 레이어 반영
 function setMover(pos, icon) {
@@ -907,6 +915,16 @@ function startTimer() {
 function stepOnce() {
   if (!moverArrived && !document.hidden) return; // 아이콘 도착 전엔 대기
   if (idx >= shown.length - 1) { stop(); return; }
+  if (mapReady && farTarget()) {
+    let loaded = true;
+    try { loaded = map.loaded(); } catch (e) {}
+    if (!loaded) {
+      const now = performance.now();
+      if (!tileWait0) tileWait0 = now;
+      if (now - tileWait0 < 4000) return; // 타일 대기
+    }
+    tileWait0 = 0;
+  } else tileWait0 = 0;
   go(idx + 1);
 }
 function stop() {
